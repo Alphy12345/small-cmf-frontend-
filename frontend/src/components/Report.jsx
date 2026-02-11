@@ -791,12 +791,12 @@ const handleReportCompanyLogoMouseDown = (e) => {
       tableWidth * 0.08,  // ID
       tableWidth * 0.13,  // NOMINAL
       tableWidth * 0.18,  // TOLERANCE
-      tableWidth * 0.13,  // TYPE
+      tableWidth * 0.15,  // TYPE
       tableWidth * 0.10,  // M1
       tableWidth * 0.10,  // M2
       tableWidth * 0.10,  // M3
       tableWidth * 0.10,  // MEAN
-      tableWidth * 0.08   // STATUS
+      tableWidth * 0.10   // STATUS
     ];
     const headers = ['ID', 'NOMINAL', 'TOLERANCE', 'TYPE', 'M1', 'M2', 'M3', 'MEAN', 'STATUS'];
     

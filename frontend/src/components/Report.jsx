@@ -861,63 +861,83 @@ const handleReportCompanyLogoMouseDown = (e) => {
       tableY += rowHeight;
     });
     
-    // ===== PAGE 3: Notes Section =====
-    if (notes && notes.length > 0) {
-      pdf.addPage();
-      let noteY = margin;
-      
-      pdf.setFontSize(14);
-      pdf.setFont(undefined, 'bold');
-      pdf.text('Notes', margin, noteY);
+    // ===== PAGE 3: Notes Section ===== 
+    console.log('DEBUG: Notes data:', notes);
+    console.log('DEBUG: Notes length:', notes?.length);
+    if (notes && notes.length > 0) { 
+      pdf.addPage(); 
+      let noteY = margin; 
+  
+      pdf.setFontSize(14); 
+      pdf.setFont(undefined, 'bold'); 
+      pdf.text('Notes', margin, noteY); 
       noteY += 15;
-
-      pdf.setFontSize(10);
-      pdf.setFont(undefined, 'normal');
       
-      notes.forEach((note) => {
-        const noteText = String(note.note_text || '');
-        if (!noteText) return;
+      pdf.setFontSize(10); 
+      pdf.setFont(undefined, 'normal'); 
+      
+      let noteCount = 0;
+      notes.forEach((note, noteIdx) => { 
+        const noteText = String(note.note_text || ''); 
+        console.log(`DEBUG: Note ${noteIdx}:`, noteText);
+        if (!noteText) return; 
         
-        // Remove NOTE: prefix and split by numbered patterns
-        const cleanedText = noteText.replace(/^NOTE:\s*/i, '').trim();
-        const items = cleanedText.split(/\n?\s*\d+\.\s*/)
-                                 .map(item => item.trim())
-                                 .filter(item => item.length > 0);
+        // Remove "NOTE:" prefix if present and clean up
+        let cleanedText = noteText.replace(/^NOTE:\s*/i, '').trim();
         
-        items.forEach((item) => {
-          // Only keep actual note sentences (not metadata labels)
-          const upper = item.toUpperCase();
-          const isNote = upper.includes('TO BE') || upper.includes('CHAMFER') || 
-                        upper.includes('HARDEN') || upper.includes('SURFACE') || 
-                        upper.includes('PEENED') || upper.includes('PLATED') ||
-                        upper.includes('SHARP') || upper.includes('EDGE') ||
-                        (item.length > 20 && item.split(' ').length > 4);
-          
-          if (!isNote) return;
-          
-          if (noteY > pageHeight - margin - 30) {
-            pdf.addPage();
-            noteY = margin;
-          }
-
-          const textX = margin;
-          const maxWidth = pageWidth - 2 * margin;
-          const wrappedLines = pdf.splitTextToSize(item, maxWidth);
-          
-          wrappedLines.forEach((line, idx) => {
-            if (idx > 0 && noteY > pageHeight - margin - 30) {
+        // Check if this is actual note content (contains key phrases)
+        const upperText = cleanedText.toUpperCase();
+        const isActualNote = upperText.includes('TO BE') || 
+                             upperText.includes('CHAMFER') || 
+                             upperText.includes('HARDEN') || 
+                             upperText.includes('SURFACE') || 
+                             upperText.includes('PEENED') || 
+                             upperText.includes('PLATED') || 
+                             upperText.includes('SHARP') || 
+                             upperText.includes('EDGE');
+        
+        // Skip metadata entries
+        const isMetadata = upperText.includes('MATERIAL') || 
+                           upperText.includes('STOCK SIZE') ||
+                           upperText === 'EN8' ||
+                           upperText.includes('CYLINDER 140') ||
+                           (cleanedText.length < 20 && !isActualNote);
+        
+        if (isMetadata || !isActualNote) {
+          console.log('DEBUG: Skipping:', cleanedText);
+          return;
+        }
+        
+        noteCount++;
+        
+        // Check if we need a new page
+        if (noteY > pageHeight - margin - 30) { 
+          pdf.addPage(); 
+          noteY = margin; 
+        } 
+        
+        const textX = margin; 
+        const maxWidth = pageWidth - 2 * margin; 
+        
+        // Display note with number prefix
+        const displayText = `${noteCount}. ${cleanedText}`;
+        const wrappedLines = pdf.splitTextToSize(displayText, maxWidth);
+        
+        wrappedLines.forEach((wrappedLine, idx) => {
+          if (idx > 0) {
+            noteY += 6;
+            if (noteY > pageHeight - margin - 30) {
               pdf.addPage();
               noteY = margin;
             }
-            pdf.text(line, textX, noteY);
-            if (idx < wrappedLines.length - 1) {
-              noteY += 6;
-            }
-          });
-          
-          noteY += 12;
+          }
+          pdf.text(wrappedLine, textX, noteY);
         });
+        
+        noteY += 12; // Add spacing after note
       });
+    } else {
+      console.log('DEBUG: No notes found - condition failed');
     }
     
     // Get total pages after table and notes

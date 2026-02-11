@@ -742,23 +742,40 @@ const handleReportCompanyLogoMouseDown = (e) => {
 
     updateYPosition(5);
 
-    // Custom Headers
+    // Custom Headers - formatted like Part Information
     if (customHeaders.length > 0) {
-      checkPageBreak(15);
-      pdf.setFontSize(12);
-      pdf.setFont(undefined, 'bold');
-      pdf.text('Custom Headers', margin, getYPosition());
-      updateYPosition(8);
-
-      pdf.setFontSize(9);
-      customHeaders.forEach((header) => {
-        checkPageBreak(6);
-        pdf.text(`${String(header.name)}:`, margin, getYPosition());
-        pdf.setFont(undefined, 'normal');
-        pdf.text(String(header.value), margin + 35, getYPosition());
-        updateYPosition(6);
-      });
       updateYPosition(15);
+      
+      customHeaders.forEach((header, index) => {
+        checkPageBreak(20);
+        
+        // Header name as section title (like "Part Information")
+        pdf.setFontSize(12);
+        pdf.setFont(undefined, 'bold');
+        pdf.text(String(header.name), margin, getYPosition());
+        updateYPosition(8);
+        
+        // Value in a table row (like Part Information rows)
+        pdf.setFontSize(9);
+        
+        // Draw row border
+        pdf.setDrawColor(200, 200, 200);
+        pdf.setLineWidth(0.5);
+        pdf.rect(margin, getYPosition(), infoTableWidth, infoRowHeight);
+        
+        // Add value label (bold)
+        pdf.setFont(undefined, 'bold');
+        pdf.text('Value:', margin + 2, getYPosition() + 4);
+        
+        // Add actual value (normal)
+        pdf.setFont(undefined, 'normal');
+        pdf.text(String(header.value), margin + labelWidth + 2, getYPosition() + 4);
+        
+        // Vertical line
+        pdf.line(margin + labelWidth, getYPosition(), margin + labelWidth, getYPosition() + infoRowHeight);
+        
+        updateYPosition(infoRowHeight + 10);
+      });
     }
 
     // Add spacing before table
@@ -768,8 +785,19 @@ const handleReportCompanyLogoMouseDown = (e) => {
     pdf.addPage();
     let tableY = margin;
     
-    // Simple table setup
-    const colWidths = [15, 25, 30, 20, 15, 15, 15, 20, 25];
+    // Full width table calculation - columns sum to 100%
+    const tableWidth = pageWidth - 2 * margin;
+    const colWidths = [
+      tableWidth * 0.08,  // ID
+      tableWidth * 0.13,  // NOMINAL
+      tableWidth * 0.18,  // TOLERANCE
+      tableWidth * 0.13,  // TYPE
+      tableWidth * 0.10,  // M1
+      tableWidth * 0.10,  // M2
+      tableWidth * 0.10,  // M3
+      tableWidth * 0.10,  // MEAN
+      tableWidth * 0.08   // STATUS
+    ];
     const headers = ['ID', 'NOMINAL', 'TOLERANCE', 'TYPE', 'M1', 'M2', 'M3', 'MEAN', 'STATUS'];
     
     // Title
@@ -778,18 +806,22 @@ const handleReportCompanyLogoMouseDown = (e) => {
     pdf.text('Inspection Data', margin, tableY);
     tableY += 10;
     
-    // Headers - simple boxes
-    pdf.setFontSize(8);
+    // Headers
+    pdf.setFontSize(9);
+    pdf.setFont('helvetica', 'bold');
     let x = margin;
+    const headerHeight = 12;
+    const rowHeight = 15; // Much taller rows to fill page
+    
     headers.forEach((h, i) => {
-      pdf.rect(x, tableY, colWidths[i], 8);
-      pdf.text(h, x + 2, tableY + 6);
+      pdf.rect(x, tableY, colWidths[i], headerHeight);
+      pdf.text(h, x + 2, tableY + headerHeight - 3);
       x += colWidths[i];
     });
-    tableY += 8;
+    tableY += headerHeight;
     
-    // Data rows
-    pdf.setFontSize(7);
+    // Data rows - fill page with tall rows
+    pdf.setFontSize(9);
     pdf.setFont('helvetica', 'normal');
     
     tableData.forEach((row, idx) => {
@@ -812,57 +844,87 @@ const handleReportCompanyLogoMouseDown = (e) => {
       
       x = margin;
       values.forEach((val, i) => {
-        pdf.rect(x, tableY, colWidths[i], 7);
-        pdf.text(val.substring(0, 12), x + 1, tableY + 5);
+        pdf.rect(x, tableY, colWidths[i], rowHeight);
+        pdf.text(val.substring(0, 30), x + 2, tableY + rowHeight - 4);
         x += colWidths[i];
       });
       
-      tableY += 7;
+      tableY += rowHeight;
     });
-
+    
     // ===== PAGE 3: Notes Section =====
     if (notes && notes.length > 0) {
       pdf.addPage();
-      currentY = margin;
+      let noteY = margin;
       
-      checkPageBreak(20);
-      pdf.setFontSize(12);
+      pdf.setFontSize(14);
       pdf.setFont(undefined, 'bold');
-      pdf.text('Note:', margin, currentY);
-      currentY += 10;
+      pdf.text('Notes', margin, noteY);
+      noteY += 15;
 
-      pdf.setFontSize(9);
+      pdf.setFontSize(10);
       pdf.setFont(undefined, 'normal');
       
+      let noteNumber = 1;
       notes.forEach((note) => {
-        checkPageBreak(15);
+        const noteText = String(note.note_text || '');
+        if (!noteText) return;
         
-        // Handle long text by splitting into lines
-        const maxWidth = pageWidth - 2 * margin;
-        const lines = pdf.splitTextToSize(note.note_text, maxWidth);
+        // Remove NOTE: prefix and split by numbered patterns
+        const cleanedText = noteText.replace(/^NOTE:\s*/i, '').trim();
+        const items = cleanedText.split(/\n?\s*\d+\.\s*/)
+                                 .map(item => item.trim())
+                                 .filter(item => item.length > 0);
         
-        lines.forEach((line, lineIndex) => {
-          if (lineIndex > 0) {
-            checkPageBreak(6);
+        items.forEach((item) => {
+          // Only keep actual note sentences (not metadata labels)
+          const upper = item.toUpperCase();
+          const isNote = upper.includes('TO BE') || upper.includes('CHAMFER') || 
+                        upper.includes('HARDEN') || upper.includes('SURFACE') || 
+                        upper.includes('PEENED') || upper.includes('PLATED') ||
+                        upper.includes('SHARP') || upper.includes('EDGE') ||
+                        (item.length > 20 && item.split(' ').length > 4);
+          
+          if (!isNote) return;
+          
+          if (noteY > pageHeight - margin - 30) {
+            pdf.addPage();
+            noteY = margin;
           }
-          pdf.text(line, margin, currentY);
-          currentY += 5;
+          
+          pdf.setFont(undefined, 'bold');
+          pdf.text(`${noteNumber}.`, margin, noteY);
+          pdf.setFont(undefined, 'normal');
+          
+          const textX = margin + 15;
+          const maxWidth = pageWidth - 2 * margin - 20;
+          const wrappedLines = pdf.splitTextToSize(item, maxWidth);
+          
+          wrappedLines.forEach((line, idx) => {
+            if (idx > 0 && noteY > pageHeight - margin - 30) {
+              pdf.addPage();
+              noteY = margin;
+            }
+            pdf.text(line, textX, noteY);
+            if (idx < wrappedLines.length - 1) {
+              noteY += 6;
+            }
+          });
+          
+          noteY += 12;
+          noteNumber++;
         });
-        
-        currentY += 3; // Small space between note items
       });
     }
-
-
-    // Add footer only to the last page
+    
+    // Get total pages after table and notes
     const totalPages = pdf.internal.getNumberOfPages();
     const lastPage = totalPages;
-    
-    // Add watermark to all pages
+
+    // Add CMTI logo as watermark (centered, semi-transparent)
     for (let i = 1; i <= totalPages; i++) {
       pdf.setPage(i);
       
-      // Add CMTI logo as watermark (centered, semi-transparent)
       try {
         const watermarkWidth = 120; // Width of watermark
         const watermarkHeight = 60; // Height of watermark

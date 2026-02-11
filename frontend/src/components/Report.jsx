@@ -796,7 +796,7 @@ const handleReportCompanyLogoMouseDown = (e) => {
       tableWidth * 0.10,  // M2
       tableWidth * 0.10,  // M3
       tableWidth * 0.10,  // MEAN
-      tableWidth * 0.10   // STATUS
+      tableWidth * 0.08   // STATUS
     ];
     const headers = ['ID', 'NOMINAL', 'TOLERANCE', 'TYPE', 'M1', 'M2', 'M3', 'MEAN', 'STATUS'];
     
@@ -815,11 +815,7 @@ const handleReportCompanyLogoMouseDown = (e) => {
     
     headers.forEach((h, i) => {
       pdf.rect(x, tableY, colWidths[i], headerHeight);
-      // Use splitTextToSize to wrap header text within cell width
-      const cellWidth = colWidths[i] - 4;
-      const wrappedHeader = pdf.splitTextToSize(h, cellWidth);
-      const displayHeader = wrappedHeader[0] || '';
-      pdf.text(displayHeader, x + 2, tableY + headerHeight - 3);
+      pdf.text(h, x + 2, tableY + headerHeight - 3);
       x += colWidths[i];
     });
     tableY += headerHeight;
@@ -849,102 +845,82 @@ const handleReportCompanyLogoMouseDown = (e) => {
       x = margin;
       values.forEach((val, i) => {
         pdf.rect(x, tableY, colWidths[i], rowHeight);
-        // Use splitTextToSize to wrap text within cell width
-        const cellWidth = colWidths[i] - 4; // 2px padding on each side
-        const wrappedText = pdf.splitTextToSize(val, cellWidth);
-        // Only take first line if text is too long
-        const displayText = wrappedText[0] || '';
-        pdf.text(displayText, x + 2, tableY + rowHeight - 5);
+        pdf.text(val.substring(0, 30), x + 2, tableY + rowHeight - 4);
         x += colWidths[i];
       });
       
       tableY += rowHeight;
     });
     
-    // ===== PAGE 3: Notes Section ===== 
-    console.log('DEBUG: Notes data:', notes);
-    console.log('DEBUG: Notes length:', notes?.length);
-    if (notes && notes.length > 0) { 
-      pdf.addPage(); 
-      let noteY = margin; 
-  
-      pdf.setFontSize(14); 
-      pdf.setFont(undefined, 'bold'); 
-      pdf.text('Notes', margin, noteY); 
+    // ===== PAGE 3: Notes Section =====
+    if (notes && notes.length > 0) {
+      pdf.addPage();
+      let noteY = margin;
+      
+      pdf.setFontSize(14);
+      pdf.setFont(undefined, 'bold');
+      pdf.text('Notes', margin, noteY);
       noteY += 15;
+
+      pdf.setFontSize(10);
+      pdf.setFont(undefined, 'normal');
       
-      pdf.setFontSize(10); 
-      pdf.setFont(undefined, 'normal'); 
-      
-      let noteCount = 0;
-      notes.forEach((note, noteIdx) => { 
-        const noteText = String(note.note_text || ''); 
-        console.log(`DEBUG: Note ${noteIdx}:`, noteText);
-        if (!noteText) return; 
+      let noteNumber = 1;
+      notes.forEach((note) => {
+        const noteText = String(note.note_text || '');
+        if (!noteText) return;
         
-        // Remove "NOTE:" prefix if present and clean up
-        let cleanedText = noteText.replace(/^NOTE:\s*/i, '').trim();
+        // Remove NOTE: prefix and split by numbered patterns
+        const cleanedText = noteText.replace(/^NOTE:\s*/i, '').trim();
+        const items = cleanedText.split(/\n?\s*\d+\.\s*/)
+                                 .map(item => item.trim())
+                                 .filter(item => item.length > 0);
         
-        // Check if this is actual note content (contains key phrases)
-        const upperText = cleanedText.toUpperCase();
-        const isActualNote = upperText.includes('TO BE') || 
-                             upperText.includes('CHAMFER') || 
-                             upperText.includes('HARDEN') || 
-                             upperText.includes('SURFACE') || 
-                             upperText.includes('PEENED') || 
-                             upperText.includes('PLATED') || 
-                             upperText.includes('SHARP') || 
-                             upperText.includes('EDGE');
-        
-        // Skip metadata entries
-        const isMetadata = upperText.includes('MATERIAL') || 
-                           upperText.includes('STOCK SIZE') ||
-                           upperText === 'EN8' ||
-                           upperText.includes('CYLINDER 140') ||
-                           (cleanedText.length < 20 && !isActualNote);
-        
-        if (isMetadata || !isActualNote) {
-          console.log('DEBUG: Skipping:', cleanedText);
-          return;
-        }
-        
-        noteCount++;
-        
-        // Check if we need a new page
-        if (noteY > pageHeight - margin - 30) { 
-          pdf.addPage(); 
-          noteY = margin; 
-        } 
-        
-        const textX = margin; 
-        const maxWidth = pageWidth - 2 * margin; 
-        
-        // Display note with number prefix
-        const displayText = `${noteCount}. ${cleanedText}`;
-        const wrappedLines = pdf.splitTextToSize(displayText, maxWidth);
-        
-        wrappedLines.forEach((wrappedLine, idx) => {
-          if (idx > 0) {
-            noteY += 6;
-            if (noteY > pageHeight - margin - 30) {
+        items.forEach((item) => {
+          // Only keep actual note sentences (not metadata labels)
+          const upper = item.toUpperCase();
+          const isNote = upper.includes('TO BE') || upper.includes('CHAMFER') || 
+                        upper.includes('HARDEN') || upper.includes('SURFACE') || 
+                        upper.includes('PEENED') || upper.includes('PLATED') ||
+                        upper.includes('SHARP') || upper.includes('EDGE') ||
+                        (item.length > 20 && item.split(' ').length > 4);
+          
+          if (!isNote) return;
+          
+          if (noteY > pageHeight - margin - 30) {
+            pdf.addPage();
+            noteY = margin;
+          }
+          
+          pdf.setFont(undefined, 'bold');
+          pdf.text(`${noteNumber}.`, margin, noteY);
+          pdf.setFont(undefined, 'normal');
+          
+          const textX = margin + 15;
+          const maxWidth = pageWidth - 2 * margin - 20;
+          const wrappedLines = pdf.splitTextToSize(item, maxWidth);
+          
+          wrappedLines.forEach((line, idx) => {
+            if (idx > 0 && noteY > pageHeight - margin - 30) {
               pdf.addPage();
               noteY = margin;
             }
-          }
-          pdf.text(wrappedLine, textX, noteY);
+            pdf.text(line, textX, noteY);
+            if (idx < wrappedLines.length - 1) {
+              noteY += 6;
+            }
+          });
+          
+          noteY += 12;
+          noteNumber++;
         });
-        
-        noteY += 12; // Add spacing after note
       });
-    } else {
-      console.log('DEBUG: No notes found - condition failed');
     }
     
     // Get total pages after table and notes
     const totalPages = pdf.internal.getNumberOfPages();
     const lastPage = totalPages;
 
-// ... (rest of the code remains the same)
     // Add CMTI logo as watermark (centered, semi-transparent)
     for (let i = 1; i <= totalPages; i++) {
       pdf.setPage(i);

@@ -796,7 +796,7 @@ const handleReportCompanyLogoMouseDown = (e) => {
       tableWidth * 0.10,  // M2
       tableWidth * 0.10,  // M3
       tableWidth * 0.10,  // MEAN
-      tableWidth * 0.08   // STATUS
+      tableWidth * 0.10   // STATUS
     ];
     const headers = ['ID', 'NOMINAL', 'TOLERANCE', 'TYPE', 'M1', 'M2', 'M3', 'MEAN', 'STATUS'];
     
@@ -815,7 +815,11 @@ const handleReportCompanyLogoMouseDown = (e) => {
     
     headers.forEach((h, i) => {
       pdf.rect(x, tableY, colWidths[i], headerHeight);
-      pdf.text(h, x + 2, tableY + headerHeight - 3);
+      // Use splitTextToSize to wrap header text within cell width
+      const cellWidth = colWidths[i] - 4;
+      const wrappedHeader = pdf.splitTextToSize(h, cellWidth);
+      const displayHeader = wrappedHeader[0] || '';
+      pdf.text(displayHeader, x + 2, tableY + headerHeight - 3);
       x += colWidths[i];
     });
     tableY += headerHeight;
@@ -845,7 +849,12 @@ const handleReportCompanyLogoMouseDown = (e) => {
       x = margin;
       values.forEach((val, i) => {
         pdf.rect(x, tableY, colWidths[i], rowHeight);
-        pdf.text(val.substring(0, 30), x + 2, tableY + rowHeight - 4);
+        // Use splitTextToSize to wrap text within cell width
+        const cellWidth = colWidths[i] - 4; // 2px padding on each side
+        const wrappedText = pdf.splitTextToSize(val, cellWidth);
+        // Only take first line if text is too long
+        const displayText = wrappedText[0] || '';
+        pdf.text(displayText, x + 2, tableY + rowHeight - 5);
         x += colWidths[i];
       });
       
@@ -865,7 +874,6 @@ const handleReportCompanyLogoMouseDown = (e) => {
       pdf.setFontSize(10);
       pdf.setFont(undefined, 'normal');
       
-      let noteNumber = 1;
       notes.forEach((note) => {
         const noteText = String(note.note_text || '');
         if (!noteText) return;
@@ -891,13 +899,9 @@ const handleReportCompanyLogoMouseDown = (e) => {
             pdf.addPage();
             noteY = margin;
           }
-          
-          pdf.setFont(undefined, 'bold');
-          pdf.text(`${noteNumber}.`, margin, noteY);
-          pdf.setFont(undefined, 'normal');
-          
-          const textX = margin + 15;
-          const maxWidth = pageWidth - 2 * margin - 20;
+
+          const textX = margin;
+          const maxWidth = pageWidth - 2 * margin;
           const wrappedLines = pdf.splitTextToSize(item, maxWidth);
           
           wrappedLines.forEach((line, idx) => {
@@ -912,7 +916,6 @@ const handleReportCompanyLogoMouseDown = (e) => {
           });
           
           noteY += 12;
-          noteNumber++;
         });
       });
     }
@@ -921,6 +924,7 @@ const handleReportCompanyLogoMouseDown = (e) => {
     const totalPages = pdf.internal.getNumberOfPages();
     const lastPage = totalPages;
 
+// ... (rest of the code remains the same)
     // Add CMTI logo as watermark (centered, semi-transparent)
     for (let i = 1; i <= totalPages; i++) {
       pdf.setPage(i);

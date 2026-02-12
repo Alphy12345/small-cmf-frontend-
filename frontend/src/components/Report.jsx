@@ -1341,159 +1341,180 @@ updateYPosition(5);
             )}
           </div>
 
-          {/* Custom Headers Section */}
-          <div style={{ 
-            marginBottom: '1.5rem',
-            padding: '1rem',
-            backgroundColor: '#f9fafb',
-            borderRadius: '6px',
+        {/* Custom Headers Section */}
+<div style={{ 
+  marginBottom: '1.5rem',
+  padding: '1rem',
+  backgroundColor: '#f9fafb',
+  borderRadius: '6px',
+  border: '1px solid #e5e7eb'
+}}>
+  <label style={{ 
+    display: 'block', 
+    fontSize: '0.875rem', 
+    fontWeight: '700', 
+    color: '#374151', 
+    marginBottom: '0.5rem',
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em'
+  }}>
+    Additional Custom Headers
+  </label>
+  
+  <div style={{ 
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr 1fr auto',
+    gap: '0.5rem', 
+    marginBottom: '1rem',
+    alignItems: 'start'
+  }}>
+    <input
+      type="text"
+      id="newHeaderName"
+      placeholder="Header name (e.g., Inspector)"
+      style={{
+        padding: '0.5rem',
+        border: '1px solid #d1d5db',
+        borderRadius: '4px',
+        fontSize: '0.875rem',
+        width: '100%'
+      }}
+    />
+    <input
+      type="text"
+      id="newHeaderFieldname"
+      placeholder="Fieldname"
+      style={{
+        padding: '0.5rem',
+        border: '1px solid #d1d5db',
+        borderRadius: '4px',
+        fontSize: '0.875rem',
+        width: '100%'
+      }}
+    />
+    <input
+      type="text"
+      id="newHeaderValue"
+      placeholder="Header value"
+      style={{
+        padding: '0.5rem',
+        border: '1px solid #d1d5db',
+        borderRadius: '4px',
+        fontSize: '0.875rem',
+        width: '100%'
+      }}
+    />
+    <button
+      onClick={() => {
+        const nameInput = document.getElementById('newHeaderName');
+        const fieldnameInput = document.getElementById('newHeaderFieldname');
+        const valueInput = document.getElementById('newHeaderValue');
+        
+        if (nameInput.value.trim() && valueInput.value.trim()) {
+          setCustomHeaders([...customHeaders, { 
+            name: nameInput.value.trim(), 
+            fieldname: fieldnameInput.value.trim() || '',
+            value: valueInput.value.trim() 
+          }]);
+          nameInput.value = '';
+          fieldnameInput.value = '';
+          valueInput.value = '';
+          showStatus('Header added successfully!', 'success');
+        }
+      }}
+      style={{
+        padding: '0.5rem 1rem',
+        border: 'none',
+        borderRadius: '4px',
+        backgroundColor: '#3b82f6',
+        color: '#ffffff',
+        fontSize: '0.875rem',
+        fontWeight: '600',
+        cursor: 'pointer',
+        whiteSpace: 'nowrap',
+        height: 'fit-content'
+      }}
+    >
+      + Add
+    </button>
+  </div>
+
+  {customHeaders.length > 0 && (
+    <div>
+      <div style={{ 
+        fontSize: '0.75rem', 
+        fontWeight: '600', 
+        color: '#6b7280', 
+        marginBottom: '0.5rem',
+        textTransform: 'uppercase',
+        letterSpacing: '0.05em'
+      }}>
+        Added Headers ({customHeaders.length}):
+      </div>
+      <div style={{ 
+        maxHeight: '150px', 
+        overflowY: 'auto',
+        overflowX: 'hidden'
+      }}>
+        {customHeaders.map((header, index) => (
+          <div key={index} style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            padding: '0.75rem',
+            backgroundColor: '#ffffff',
+            borderRadius: '4px',
+            marginBottom: '0.5rem',
             border: '1px solid #e5e7eb'
           }}>
-            <label style={{ 
-              display: 'block', 
-              fontSize: '0.875rem', 
-              fontWeight: '700', 
-              color: '#374151', 
-              marginBottom: '0.5rem',
-              textTransform: 'uppercase',
-              letterSpacing: '0.05em'
-            }}>
-              Additional Custom Headers
-            </label>
-            
-            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
-              <input
-                type="text"
-                id="newHeaderName"
-                placeholder="Header name (e.g., Inspector)"
-                style={{
-                  flex: 1,
-                  padding: '0.5rem',
-                  border: '1px solid #d1d5db',
-                  borderRadius: '4px',
-                  fontSize: '0.875rem'
-                }}
-              />
-              <input
-                type="text"
-                id="newHeaderFieldname"
-                placeholder="Fieldname"
-                style={{
-                  flex: 1,
-                  padding: '0.5rem',
-                  border: '1px solid #d1d5db',
-                  borderRadius: '4px',
-                  fontSize: '0.875rem'
-                }}
-              />
-              <input
-                type="text"
-                id="newHeaderValue"
-                placeholder="Header value"
-                style={{
-                  flex: 1,
-                  padding: '0.5rem',
-                  border: '1px solid #d1d5db',
-                  borderRadius: '4px',
-                  fontSize: '0.875rem'
-                }}
-              />
-              <button
-                onClick={() => {
-                  const nameInput = document.getElementById('newHeaderName');
-                  const fieldnameInput = document.getElementById('newHeaderFieldname');
-                  const valueInput = document.getElementById('newHeaderValue');
-                  
-                  if (nameInput.value.trim() && valueInput.value.trim()) {
-                    setCustomHeaders([...customHeaders, { 
-                      name: nameInput.value.trim(), 
-                      fieldname: fieldnameInput.value.trim() || '',
-                      value: valueInput.value.trim() 
-                    }]);
-                    nameInput.value = '';
-                    fieldnameInput.value = '';
-                    valueInput.value = '';
-                    showStatus('Header added successfully!', 'success');
-                  }
-                }}
-                style={{
-                  padding: '0.5rem 1rem',
-                  border: 'none',
-                  borderRadius: '4px',
-                  backgroundColor: '#3b82f6',
-                  color: '#ffffff',
-                  fontSize: '0.875rem',
-                  fontWeight: '600',
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap'
-                }}
-              >
-                + Add
-              </button>
-            </div>
-
-            {customHeaders.length > 0 && (
-              <div style={{ maxHeight: '200px', overflow: 'auto' }}>
-                <div style={{ 
-                  fontSize: '0.75rem', 
-                  fontWeight: '600', 
-                  color: '#6b7280', 
-                  marginBottom: '0.5rem',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.05em'
-                }}>
-                  Added Headers ({customHeaders.length}):
-                </div>
-                {customHeaders.map((header, index) => (
-                  <div key={index} style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    padding: '0.75rem',
-                    backgroundColor: '#ffffff',
-                    borderRadius: '4px',
-                    marginBottom: '0.5rem',
-                    border: '1px solid #e5e7eb'
-                  }}>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ 
-                        fontSize: '0.75rem', 
-                        fontWeight: '700', 
-                        color: '#6b7280',
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.05em',
-                        marginBottom: '0.125rem'
-                      }}>
-                        {header.name}
-                      </div>
-                      <div style={{ fontSize: '0.875rem', color: '#111827', fontWeight: '500' }}>
-                        {header.fieldname ? `${header.fieldname}: ` : ''}{header.value}
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => {
-                        setCustomHeaders(customHeaders.filter((_, i) => i !== index));
-                        showStatus('Header removed', 'info');
-                      }}
-                      style={{
-                        padding: '0.25rem 0.5rem',
-                        border: '1px solid #ef4444',
-                        borderRadius: '4px',
-                        backgroundColor: '#ffffff',
-                        color: '#ef4444',
-                        fontSize: '0.75rem',
-                        fontWeight: '600',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      Remove
-                    </button>
-                  </div>
-                ))}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ 
+                fontSize: '0.75rem', 
+                fontWeight: '700', 
+                color: '#6b7280',
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
+                marginBottom: '0.125rem'
+              }}>
+                {header.name}
               </div>
-            )}
+              <div style={{ 
+                fontSize: '0.875rem', 
+                color: '#111827', 
+                fontWeight: '500',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap'
+              }}>
+                {header.fieldname ? `${header.fieldname}: ` : ''}{header.value}
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                setCustomHeaders(customHeaders.filter((_, i) => i !== index));
+                showStatus('Header removed', 'info');
+              }}
+              style={{
+                padding: '0.25rem 0.5rem',
+                border: '1px solid #ef4444',
+                borderRadius: '4px',
+                backgroundColor: '#ffffff',
+                color: '#ef4444',
+                fontSize: '0.75rem',
+                fontWeight: '600',
+                cursor: 'pointer',
+                marginLeft: '0.5rem',
+                flexShrink: 0
+              }}
+            >
+              Remove
+            </button>
           </div>
-          
+        ))}
+      </div>
+    </div>
+  )}
+</div>
           {/* Action Buttons */}
           <div style={{ 
             display: 'flex', 

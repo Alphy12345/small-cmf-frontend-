@@ -682,65 +682,75 @@ const handleReportCompanyLogoMouseDown = (e) => {
       const nameX = margin + 45; // 45mm from left (logo width + 5mm gap)
       pdf.text(companyName, nameX, currentY + 5, { align: 'left' });
     }
+updateYPosition(25); // Skip the title since we're showing company name and logo instead
 
-    updateYPosition(25);
+// Separator line
+pdf.setDrawColor(200, 200, 200);
+pdf.setLineWidth(0.5);
+pdf.line(margin, getYPosition(), pageWidth - margin, getYPosition());
+updateYPosition(10);
 
-    // Skip the title since we're showing company name and logo instead
+// Part Information Section
+checkPageBreak(40);
+pdf.setFontSize(12);
+pdf.setFont(undefined, 'bold');
+pdf.text('Part Information', margin, getYPosition());
+updateYPosition(8);
 
-    // Separator line
+// Create table for part information
+const partInfoData = [
+    ['Part Number:', String(reportData?.part_no || 'N/A')],
+    ['Part Name:', String(reportData?.part_name || 'N/A')],
+    ['Project:', String(reportData?.boc?.project?.name || 'N/A')],
+    ['Quantity:', String(reportData?.boc?.quantity || 'N/A')]
+];
+
+pdf.setFontSize(9);
+
+// Calculate the maximum width needed for labels and values
+const labelWidth = 35; // Fixed width for labels
+let maxValueWidth = 0;
+
+partInfoData.forEach(([label, value]) => {
+    const valueTextWidth = pdf.getTextWidth(value);
+    maxValueWidth = Math.max(maxValueWidth, valueTextWidth);
+});
+
+// Add padding to value width
+const valuePadding = 4; // 2px padding on each side
+const valueWidth = maxValueWidth + valuePadding;
+
+// Total table width is now based on content
+const infoTableWidth = labelWidth + valueWidth;
+
+const infoRowHeight = 6;
+const infoTableX = margin; // Start from left margin
+
+partInfoData.forEach(([label, value]) => {
+    checkPageBreak(infoRowHeight + 2);
+    
+    // Draw table border
     pdf.setDrawColor(200, 200, 200);
     pdf.setLineWidth(0.5);
-    pdf.line(margin, getYPosition(), pageWidth - margin, getYPosition());
-    updateYPosition(10);
-
-    // Part Information Section
-    checkPageBreak(40);
-    pdf.setFontSize(12);
-    pdf.setFont(undefined, 'bold');
-    pdf.text('Part Information', margin, getYPosition());
-    updateYPosition(8);
-
-    // Create table for part information
-    const partInfoData = [
-      ['Part Number:', String(reportData?.part_no || 'N/A')],
-      ['Part Name:', String(reportData?.part_name || 'N/A')],
-      ['Project:', String(reportData?.boc?.project?.name || 'N/A')],
-      ['Quantity:', String(reportData?.boc?.quantity || 'N/A')]
-    ];
-
-    const infoTableWidth = pageWidth - 2 * margin; // Full width from left to right margin
-    const labelWidth = 35; // Width for label column
-    const valueWidth = infoTableWidth - labelWidth; // Width for value column
-    const infoRowHeight = 6;
-    const infoTableX = margin; // Start from left margin
-
-    pdf.setFontSize(9);
     
-    partInfoData.forEach(([label, value]) => {
-      checkPageBreak(infoRowHeight + 2);
-      
-      // Draw table border
-      pdf.setDrawColor(200, 200, 200);
-      pdf.setLineWidth(0.5);
-      
-      // Draw row border
-      pdf.rect(infoTableX, getYPosition(), infoTableWidth, infoRowHeight);
-      
-      // Draw vertical line between label and value
-      pdf.line(infoTableX + labelWidth, getYPosition(), infoTableX + labelWidth, getYPosition() + infoRowHeight);
-      
-      // Add label (bold)
-      pdf.setFont(undefined, 'bold');
-      pdf.text(label, infoTableX + 2, getYPosition() + 4);
-      
-      // Add value (normal)
-      pdf.setFont(undefined, 'normal');
-      pdf.text(value, infoTableX + labelWidth + 2, getYPosition() + 4);
-      
-      updateYPosition(infoRowHeight);
-    });
+    // Draw row border
+    pdf.rect(infoTableX, getYPosition(), infoTableWidth, infoRowHeight);
+    
+    // Draw vertical line between label and value
+    pdf.line(infoTableX + labelWidth, getYPosition(), infoTableX + labelWidth, getYPosition() + infoRowHeight);
+    
+    // Add label (bold)
+    pdf.setFont(undefined, 'bold');
+    pdf.text(label, infoTableX + 2, getYPosition() + 4);
+    
+    // Add value (normal)
+    pdf.setFont(undefined, 'normal');
+    pdf.text(value, infoTableX + labelWidth + 2, getYPosition() + 4);
+    
+    updateYPosition(infoRowHeight);
+});
 
-    updateYPosition(5);
+updateYPosition(5);
 
     // Custom Headers - formatted like Part Information
     if (customHeaders.length > 0) {
@@ -798,7 +808,7 @@ const handleReportCompanyLogoMouseDown = (e) => {
       tableWidth * 0.08,  // ID
       tableWidth * 0.13,  // NOMINAL
       tableWidth * 0.18,  // TOLERANCE
-      tableWidth * 0.15,  // TYPE
+      tableWidth * 0.18,  // TYPE
       tableWidth * 0.10,  // M1
       tableWidth * 0.10,  // M2
       tableWidth * 0.10,  // M3

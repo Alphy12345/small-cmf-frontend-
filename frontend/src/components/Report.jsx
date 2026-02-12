@@ -763,13 +763,20 @@ const handleReportCompanyLogoMouseDown = (e) => {
         pdf.setLineWidth(0.5);
         pdf.rect(margin, getYPosition(), infoTableWidth, infoRowHeight);
         
-        // Add value label (bold)
+        // Add value label (bold) - use fieldname if exists, otherwise "Value"
         pdf.setFont(undefined, 'bold');
-        pdf.text('Value:', margin + 2, getYPosition() + 4);
+        const labelText = header.fieldname || 'Value';
+        pdf.text(labelText + ':', margin + 2, getYPosition() + 4);
         
-        // Add actual value (normal)
-        pdf.setFont(undefined, 'normal');
-        pdf.text(String(header.value), margin + labelWidth + 2, getYPosition() + 4);
+        // Add fieldname if exists (normal)
+        if (header.fieldname) {
+          pdf.setFont(undefined, 'normal');
+          pdf.text(String(header.value), margin + labelWidth + 2, getYPosition() + 4);
+        } else {
+          // Add actual value (normal) - no fieldname
+          pdf.setFont(undefined, 'normal');
+          pdf.text(String(header.value), margin + labelWidth + 2, getYPosition() + 4);
+        }
         
         // Vertical line
         pdf.line(margin + labelWidth, getYPosition(), margin + labelWidth, getYPosition() + infoRowHeight);
@@ -1359,6 +1366,18 @@ const handleReportCompanyLogoMouseDown = (e) => {
               />
               <input
                 type="text"
+                id="newHeaderFieldname"
+                placeholder="Fieldname"
+                style={{
+                  flex: 1,
+                  padding: '0.5rem',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '4px',
+                  fontSize: '0.875rem'
+                }}
+              />
+              <input
+                type="text"
                 id="newHeaderValue"
                 placeholder="Header value"
                 style={{
@@ -1372,14 +1391,17 @@ const handleReportCompanyLogoMouseDown = (e) => {
               <button
                 onClick={() => {
                   const nameInput = document.getElementById('newHeaderName');
+                  const fieldnameInput = document.getElementById('newHeaderFieldname');
                   const valueInput = document.getElementById('newHeaderValue');
                   
                   if (nameInput.value.trim() && valueInput.value.trim()) {
                     setCustomHeaders([...customHeaders, { 
                       name: nameInput.value.trim(), 
+                      fieldname: fieldnameInput.value.trim() || '',
                       value: valueInput.value.trim() 
                     }]);
                     nameInput.value = '';
+                    fieldnameInput.value = '';
                     valueInput.value = '';
                     showStatus('Header added successfully!', 'success');
                   }
@@ -1435,7 +1457,7 @@ const handleReportCompanyLogoMouseDown = (e) => {
                         {header.name}
                       </div>
                       <div style={{ fontSize: '0.875rem', color: '#111827', fontWeight: '500' }}>
-                        {header.value}
+                        {header.fieldname ? `${header.fieldname}: ` : ''}{header.value}
                       </div>
                     </div>
                     <button

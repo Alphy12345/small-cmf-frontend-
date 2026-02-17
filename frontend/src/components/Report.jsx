@@ -1353,7 +1353,7 @@ updateYPosition(5);
     display: 'block', 
     fontSize: '0.875rem', 
     fontWeight: '700', 
-    color: '#374151', 
+    color: '#059669', 
     marginBottom: '0.5rem',
     textTransform: 'uppercase',
     letterSpacing: '0.05em'

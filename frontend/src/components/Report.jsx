@@ -726,74 +726,79 @@ const infoTableWidth = labelWidth + valueWidth;
 const infoRowHeight = 6;
 const infoTableX = margin; // Start from left margin
 
-partInfoData.forEach(([label, value]) => {
+// Calculate positions for side-by-side tables
+const leftTableWidth = infoTableWidth;
+const rightTableX = margin + leftTableWidth + 10; // 10mm gap between tables
+const rightTableWidth = pageWidth - margin - rightTableX;
+
+partInfoData.forEach(([label, value], index) => {
     checkPageBreak(infoRowHeight + 2);
+    const rowY = getYPosition();
     
-    // Draw table border
+    // Left table (Part Information)
     pdf.setDrawColor(200, 200, 200);
     pdf.setLineWidth(0.5);
+    pdf.rect(infoTableX, rowY, leftTableWidth, infoRowHeight);
+    pdf.line(infoTableX + labelWidth, rowY, infoTableX + labelWidth, rowY + infoRowHeight);
     
-    // Draw row border
-    pdf.rect(infoTableX, getYPosition(), infoTableWidth, infoRowHeight);
-    
-    // Draw vertical line between label and value
-    pdf.line(infoTableX + labelWidth, getYPosition(), infoTableX + labelWidth, getYPosition() + infoRowHeight);
-    
-    // Add label (bold)
     pdf.setFont(undefined, 'bold');
-    pdf.text(label, infoTableX + 2, getYPosition() + 4);
+    pdf.text(label, infoTableX + 2, rowY + 4);
     
-    // Add value (normal)
     pdf.setFont(undefined, 'normal');
-    pdf.text(value, infoTableX + labelWidth + 2, getYPosition() + 4);
+    pdf.text(value, infoTableX + labelWidth + 2, rowY + 4);
+    
+    // Right table (Custom Headers) - draw alongside
+    if (customHeaders[index]) {
+        const header = customHeaders[index];
+        const fieldnameLabel = header.fieldname || 'Value';
+        
+        // Calculate widths for right table
+        const rightLabelWidth = 35;
+        const rightValueWidth = rightTableWidth - rightLabelWidth;
+        
+        // Draw right table row
+        pdf.rect(rightTableX, rowY, rightTableWidth, infoRowHeight);
+        pdf.line(rightTableX + rightLabelWidth, rowY, rightTableX + rightLabelWidth, rowY + infoRowHeight);
+        
+        // Fieldname label (bold)
+        pdf.setFont(undefined, 'bold');
+        pdf.text(fieldnameLabel + ':', rightTableX + 2, rowY + 4);
+        
+        // Value (normal)
+        pdf.setFont(undefined, 'normal');
+        pdf.text(String(header.value), rightTableX + rightLabelWidth + 2, rowY + 4);
+    }
     
     updateYPosition(infoRowHeight);
 });
 
-updateYPosition(5);
-
-    // Custom Headers - formatted like Part Information
-    if (customHeaders.length > 0) {
-      updateYPosition(15);
-      
-      customHeaders.forEach((header, index) => {
-        checkPageBreak(20);
+// Handle remaining custom headers if more than part info rows
+if (customHeaders.length > partInfoData.length) {
+    for (let i = partInfoData.length; i < customHeaders.length; i++) {
+        checkPageBreak(infoRowHeight + 2);
+        const rowY = getYPosition();
+        const header = customHeaders[i];
+        const fieldnameLabel = header.fieldname || 'Value';
         
-        // Header name as section title (like "Part Information")
-        pdf.setFontSize(12);
-        pdf.setFont(undefined, 'bold');
-        pdf.text(String(header.name), margin, getYPosition());
-        updateYPosition(8);
+        const rightLabelWidth = 35;
+        const rightValueWidth = rightTableWidth - rightLabelWidth;
         
-        // Value in a table row (like Part Information rows)
-        pdf.setFontSize(9);
-        
-        // Draw row border
         pdf.setDrawColor(200, 200, 200);
         pdf.setLineWidth(0.5);
-        pdf.rect(margin, getYPosition(), infoTableWidth, infoRowHeight);
+        pdf.rect(rightTableX, rowY, rightTableWidth, infoRowHeight);
+        pdf.line(rightTableX + rightLabelWidth, rowY, rightTableX + rightLabelWidth, rowY + infoRowHeight);
         
-        // Add value label (bold) - use fieldname if exists, otherwise "Value"
         pdf.setFont(undefined, 'bold');
-        const labelText = header.fieldname || 'Value';
-        pdf.text(labelText + ':', margin + 2, getYPosition() + 4);
+        pdf.text(fieldnameLabel + ':', rightTableX + 2, rowY + 4);
         
-        // Add fieldname if exists (normal)
-        if (header.fieldname) {
-          pdf.setFont(undefined, 'normal');
-          pdf.text(String(header.value), margin + labelWidth + 2, getYPosition() + 4);
-        } else {
-          // Add actual value (normal) - no fieldname
-          pdf.setFont(undefined, 'normal');
-          pdf.text(String(header.value), margin + labelWidth + 2, getYPosition() + 4);
-        }
+        pdf.setFont(undefined, 'normal');
+        pdf.text(String(header.value), rightTableX + rightLabelWidth + 2, rowY + 4);
         
-        // Vertical line
-        pdf.line(margin + labelWidth, getYPosition(), margin + labelWidth, getYPosition() + infoRowHeight);
-        
-        updateYPosition(infoRowHeight + 10);
-      });
+        updateYPosition(infoRowHeight);
     }
+}
+
+updateYPosition(5);
 
     // Add spacing before table
     updateYPosition(15);

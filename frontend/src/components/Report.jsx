@@ -694,6 +694,7 @@ updateYPosition(10);
 checkPageBreak(40);
 pdf.setFontSize(12);
 pdf.setFont(undefined, 'bold');
+pdf.setTextColor(0, 0, 0); // Black text for title
 pdf.text('Part Information', margin, getYPosition());
 updateYPosition(8);
 
@@ -735,19 +736,21 @@ partInfoData.forEach(([label, value], index) => {
     checkPageBreak(infoRowHeight + 2);
     const rowY = getYPosition();
     
-    // Left table (Part Information)
+    // Left table (Part Information) - simple styling
     pdf.setDrawColor(200, 200, 200);
     pdf.setLineWidth(0.5);
     pdf.rect(infoTableX, rowY, leftTableWidth, infoRowHeight);
     pdf.line(infoTableX + labelWidth, rowY, infoTableX + labelWidth, rowY + infoRowHeight);
     
     pdf.setFont(undefined, 'bold');
+    pdf.setTextColor(0, 0, 0); // Black text
     pdf.text(label, infoTableX + 2, rowY + 4);
     
     pdf.setFont(undefined, 'normal');
+    pdf.setTextColor(0, 0, 0); // Black text
     pdf.text(value, infoTableX + labelWidth + 2, rowY + 4);
     
-    // Right table (Custom Headers) - draw alongside
+    // Right table (Custom Headers) - draw alongside with simple styling
     if (customHeaders[index]) {
         const header = customHeaders[index];
         const fieldnameLabel = header.fieldname || 'Value';
@@ -756,16 +759,17 @@ partInfoData.forEach(([label, value], index) => {
         const rightLabelWidth = 35;
         const rightValueWidth = rightTableWidth - rightLabelWidth;
         
-        // Draw right table row
+        pdf.setDrawColor(200, 200, 200);
+        pdf.setLineWidth(0.5);
         pdf.rect(rightTableX, rowY, rightTableWidth, infoRowHeight);
         pdf.line(rightTableX + rightLabelWidth, rowY, rightTableX + rightLabelWidth, rowY + infoRowHeight);
         
-        // Fieldname label (bold)
         pdf.setFont(undefined, 'bold');
+        pdf.setTextColor(0, 0, 0); // Black text
         pdf.text(fieldnameLabel + ':', rightTableX + 2, rowY + 4);
         
-        // Value (normal)
         pdf.setFont(undefined, 'normal');
+        pdf.setTextColor(0, 0, 0); // Black text
         pdf.text(String(header.value), rightTableX + rightLabelWidth + 2, rowY + 4);
     }
     
@@ -789,9 +793,11 @@ if (customHeaders.length > partInfoData.length) {
         pdf.line(rightTableX + rightLabelWidth, rowY, rightTableX + rightLabelWidth, rowY + infoRowHeight);
         
         pdf.setFont(undefined, 'bold');
+        pdf.setTextColor(0, 0, 0); // Black text
         pdf.text(fieldnameLabel + ':', rightTableX + 2, rowY + 4);
         
         pdf.setFont(undefined, 'normal');
+        pdf.setTextColor(0, 0, 0); // Black text
         pdf.text(String(header.value), rightTableX + rightLabelWidth + 2, rowY + 4);
         
         updateYPosition(infoRowHeight);
@@ -807,49 +813,60 @@ updateYPosition(5);
     pdf.addPage();
     let tableY = margin;
     
+    // Move table to the left - use smaller margin
+    const tableMargin = 15; // Reduced from 20mm
+    
     // Full width table calculation - columns sum to 100%
-    const tableWidth = pageWidth - 2 * margin;
+    const tableWidth = pageWidth - 2 * tableMargin;
     const colWidths = [
-      tableWidth * 0.08,  // ID
-      tableWidth * 0.13,  // NOMINAL
-      tableWidth * 0.18,  // TOLERANCE
-      tableWidth * 0.18,  // TYPE
-      tableWidth * 0.10,  // M1
-      tableWidth * 0.10,  // M2
-      tableWidth * 0.10,  // M3
-      tableWidth * 0.10,  // MEAN
-      tableWidth * 0.10   // STATUS
+      tableWidth * 0.07,  // ID
+      tableWidth * 0.12,  // NOMINAL
+      tableWidth * 0.16,  // TOLERANCE
+      tableWidth * 0.22,  // TYPE - increased for longer text
+      tableWidth * 0.09,  // M1
+      tableWidth * 0.09,  // M2
+      tableWidth * 0.09,  // M3
+      tableWidth * 0.09,  // MEAN
+      tableWidth * 0.09   // STATUS
     ];
     const headers = ['ID', 'NOMINAL', 'TOLERANCE', 'TYPE', 'M1', 'M2', 'M3', 'MEAN', 'STATUS'];
     
     // Title
     pdf.setFontSize(12);
     pdf.setFont('helvetica', 'bold');
-    pdf.text('Inspection Data', margin, tableY);
+    pdf.text('Inspection Data', tableMargin, tableY);
     tableY += 10;
     
-    // Headers
+    // Headers with dark teal styling (like energy data table)
     pdf.setFontSize(9);
     pdf.setFont('helvetica', 'bold');
-    let x = margin;
+    let x = tableMargin;
     const headerHeight = 12;
     const rowHeight = 15; // Much taller rows to fill page
     
     headers.forEach((h, i) => {
+      // Dark teal background for header (like energy table)
+      pdf.setFillColor(4, 120, 87); // Dark teal #047857
+      pdf.rect(x, tableY, colWidths[i], headerHeight, 'F');
+      // Black border for header
+      pdf.setDrawColor(0, 0, 0); // Black
+      pdf.setLineWidth(0.5);
       pdf.rect(x, tableY, colWidths[i], headerHeight);
+      // White text for header
+      pdf.setTextColor(255, 255, 255); // White
       pdf.text(h, x + 2, tableY + headerHeight - 3);
       x += colWidths[i];
     });
     tableY += headerHeight;
     
-    // Data rows - fill page with tall rows
+    // Data rows - white background with black text (like energy data table)
     pdf.setFontSize(9);
     pdf.setFont('helvetica', 'normal');
     
     tableData.forEach((row, idx) => {
-      if (tableY > pageHeight - margin - 20) {
+      if (tableY > pageHeight - tableMargin - 20) {
         pdf.addPage();
-        tableY = margin;
+        tableY = tableMargin;
       }
       
       const values = [
@@ -864,9 +881,31 @@ updateYPosition(5);
         String(row.status || '-')
       ];
       
-      x = margin;
+      x = tableMargin;
       values.forEach((val, i) => {
+        // White background for data cells (default)
+        pdf.setFillColor(255, 255, 255); // White
+        pdf.rect(x, tableY, colWidths[i], rowHeight, 'F');
+        
+        // Cell border - black
+        pdf.setDrawColor(0, 0, 0); // Black
+        pdf.setLineWidth(0.3);
         pdf.rect(x, tableY, colWidths[i], rowHeight);
+        
+        // Text color - bright green/red for status cells, black for others
+        const statusUpper = values[8].toUpperCase();
+        if (i === 8) { // STATUS column
+          if (statusUpper === 'NO_GO' || statusUpper === 'NO-GO' || statusUpper === 'NO GO') {
+            pdf.setTextColor(255, 0, 0); // Pure bright red text for NO_GO
+          } else if (statusUpper === 'GO') {
+            pdf.setTextColor(0, 255, 0); // Pure bright green text for GO
+          } else {
+            pdf.setTextColor(0, 0, 0); // Black text for other values
+          }
+        } else {
+          pdf.setTextColor(0, 0, 0); // Black text for non-status columns
+        }
+        
         pdf.text(val.substring(0, 30), x + 2, tableY + rowHeight - 4);
         x += colWidths[i];
       });

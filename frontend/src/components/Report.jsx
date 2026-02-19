@@ -819,10 +819,10 @@ updateYPosition(5);
     // Full width table calculation - columns sum to 100%
     const tableWidth = pageWidth - 2 * tableMargin;
     const colWidths = [
-      tableWidth * 0.07,  // ID
-      tableWidth * 0.12,  // NOMINAL
-      tableWidth * 0.16,  // TOLERANCE
-      tableWidth * 0.22,  // TYPE - increased for longer text
+      tableWidth * 0.04,  // ID
+      tableWidth * 0.10,  // NOMINAL
+      tableWidth * 0.13,  // TOLERANCE
+      tableWidth * 0.18,  // TYPE - increased for longer text
       tableWidth * 0.09,  // M1
       tableWidth * 0.09,  // M2
       tableWidth * 0.09,  // M3
@@ -835,29 +835,29 @@ updateYPosition(5);
     pdf.setFontSize(12);
     pdf.setFont('helvetica', 'bold');
     pdf.text('Inspection Data', tableMargin, tableY);
-    tableY += 10;
+    tableY += 8;
     
-    // Headers with dark teal styling (like energy data table)
-    pdf.setFontSize(9);
-    pdf.setFont('helvetica', 'bold');
-    let x = tableMargin;
-    const headerHeight = 12;
-    const rowHeight = 15; // Much taller rows to fill page
-    
-    headers.forEach((h, i) => {
-      // Dark teal background for header (like energy table)
-      pdf.setFillColor(4, 120, 87); // Dark teal #047857
-      pdf.rect(x, tableY, colWidths[i], headerHeight, 'F');
-      // Black border for header
-      pdf.setDrawColor(0, 0, 0); // Black
-      pdf.setLineWidth(0.5);
-      pdf.rect(x, tableY, colWidths[i], headerHeight);
-      // White text for header
-      pdf.setTextColor(255, 255, 255); // White
-      pdf.text(h, x + 2, tableY + headerHeight - 3);
-      x += colWidths[i];
-    });
-    tableY += headerHeight;
+// Headers with dark teal styling (like energy data table)
+pdf.setFontSize(9);
+pdf.setFont('helvetica', 'bold');
+let x = tableMargin;
+const headerHeight = 8;
+const rowHeight = 13; // Much taller rows to fill the page
+
+headers.forEach((h, i) => {
+  // Dark teal background for header (like energy table)
+  pdf.setFillColor(4, 120, 87); // Dark teal #047857
+  pdf.rect(x, tableY, colWidths[i], headerHeight, 'F');
+  // Black border for header
+  pdf.setDrawColor(0, 0, 0); // Black
+  pdf.setLineWidth(0.5);
+  pdf.rect(x, tableY, colWidths[i], headerHeight);
+  // White text for header - vertically and horizontally centered
+  pdf.setTextColor(255, 255, 255); // White
+  pdf.text(h, x + colWidths[i] / 2, tableY + headerHeight / 2 + 2, { align: 'center' });
+  x += colWidths[i];
+});
+tableY += headerHeight;
     
     // Data rows - white background with black text (like energy data table)
     pdf.setFontSize(9);
@@ -871,14 +871,14 @@ updateYPosition(5);
       
       const values = [
         String(idx + 1),
-        String(row.nominal || '-'),
-        String(row.tolerance || '-'),
-        String(row.type || '-'),
-        String(row.m1 || '-'),
-        String(row.m2 || '-'),
-        String(row.m3 || '-'),
-        String(row.mean || '-'),
-        String(row.status || '-')
+        String(row.nominal || '-').trim(),
+        String(row.tolerance || '-').trim(),
+        String(row.type || '-').trim(),
+        String(row.m1 || '-').trim(),
+        String(row.m2 || '-').trim(),
+        String(row.m3 || '-').trim(),
+        String(row.mean || '-').trim(),
+        String(row.status || '-').trim()
       ];
       
       x = tableMargin;
@@ -887,32 +887,32 @@ updateYPosition(5);
         pdf.setFillColor(255, 255, 255); // White
         pdf.rect(x, tableY, colWidths[i], rowHeight, 'F');
         
-        // Cell border - black
+        // Cell border - black (thin)
         pdf.setDrawColor(0, 0, 0); // Black
-        pdf.setLineWidth(0.3);
+        pdf.setLineWidth(0.2);
         pdf.rect(x, tableY, colWidths[i], rowHeight);
         
-        // Text color - bright green/red for status cells, black for others
-        const statusUpper = values[8].toUpperCase();
-        if (i === 8) { // STATUS column
-          if (statusUpper === 'NO_GO' || statusUpper === 'NO-GO' || statusUpper === 'NO GO') {
-            pdf.setTextColor(255, 0, 0); // Pure bright red text for NO_GO
-          } else if (statusUpper === 'GO') {
-            pdf.setTextColor(0, 255, 0); // Pure bright green text for GO
-          } else {
-            pdf.setTextColor(0, 0, 0); // Black text for other values
-          }
-        } else {
-          pdf.setTextColor(0, 0, 0); // Black text for non-status columns
-        }
-        
-        pdf.text(val.substring(0, 30), x + 2, tableY + rowHeight - 4);
-        x += colWidths[i];
-      });
-      
-      tableY += rowHeight;
-    });
-    
+     // Text color - bright green/red for status cells, black for others
+const statusUpper = values[8].toUpperCase();
+if (i === 8) { // STATUS column
+  if (statusUpper === 'NO_GO' || statusUpper === 'NO-GO' || statusUpper === 'NO GO') {
+    pdf.setTextColor(255, 0, 0); // Pure bright red text for NO_GO
+  } else if (statusUpper === 'GO') {
+    pdf.setTextColor(0, 255, 0); // Pure bright green text for GO
+  } else {
+    pdf.setTextColor(0, 0, 0); // Black text for other values
+  }
+} else {
+  pdf.setTextColor(0, 0, 0); // Black text for non-status columns
+}
+
+// Vertically and horizontally centered text
+pdf.text(val.substring(0, 30), x + colWidths[i] / 2, tableY + rowHeight / 2 + 2, { align: 'center' });
+x += colWidths[i];
+});
+
+tableY += rowHeight;
+});
     // ===== PAGE 3: Notes Section =====
     if (notes && notes.length > 0) {
       pdf.addPage();

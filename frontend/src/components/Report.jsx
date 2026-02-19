@@ -1098,15 +1098,48 @@ tableY += rowHeight;
       // Create workbook
       const wb = XLSX.utils.book_new();
       
-      // Prepare data for Excel
+      // ===== SINGLE SHEET: Complete Report =====
       const excelData = [];
       
-      // Add headers
-      excelData.push(['ID', 'NOMINAL', 'TOLERANCE', 'TYPE', 'M1', 'M2', 'M3', 'MEAN', 'STATUS']);
+      // Add title row - centered across columns
+      excelData.push(['', 'INSPECTION REPORT', '', '', '', '', '', '', '']);
+      excelData.push(['', '', '', '', '', '', '', '', '']); // Empty row
+      
+      // Add Part Information Section
+      excelData.push(['', 'PART INFORMATION', '', '', '', '', '', '', '']);
+      excelData.push(['', 'Part Number:', String(reportData?.part_no || partData?.name || 'N/A'), '', '', '', '', '', '']);
+      excelData.push(['', 'Part Name:', String(reportData?.part_name || partData?.part_name || 'N/A'), '', '', '', '', '', '']);
+      excelData.push(['', 'Project:', String(reportData?.boc?.project?.name || bomData?.project?.name || 'N/A'), '', '', '', '', '', '']);
+      excelData.push(['', 'Quantity:', String(reportData?.boc?.quantity || 'N/A'), '', '', '', '', '', '']);
+      excelData.push(['', '', '', '', '', '', '', '', '']); // Empty row
+      
+      // Add Custom Headers if any
+      if (customHeaders && customHeaders.length > 0) {
+        excelData.push(['', 'ADDITIONAL INFORMATION', '', '', '', '', '', '', '']);
+        customHeaders.forEach(header => {
+          excelData.push(['', String(header.fieldname || header.name) + ':', String(header.value), '', '', '', '', '', '']);
+        });
+        excelData.push(['', '', '', '', '', '', '', '', '']); // Empty row
+      }
+      
+      // Add Company Information if available
+      if (companyName) {
+        excelData.push(['', 'COMPANY', '', '', '', '', '', '', '']);
+        excelData.push(['', 'Company Name:', companyName, '', '', '', '', '', '']);
+        excelData.push(['', '', '', '', '', '', '', '', '']); // Empty row
+      }
+      
+      // Add Inspection Data Section
+      excelData.push(['', 'INSPECTION DATA', '', '', '', '', '', '', '']);
+      excelData.push(['', '', '', '', '', '', '', '', '']); // Empty row
+      
+      // Add inspection table headers
+      excelData.push(['', 'ID', 'NOMINAL', 'TOLERANCE', 'TYPE', 'M1', 'M2', 'M3', 'MEAN', 'STATUS']);
       
       // Add table data
       tableData.forEach((row, idx) => {
         excelData.push([
+          '',
           idx + 1,
           row.nominal || '-',
           row.tolerance || '-',
@@ -1119,17 +1152,251 @@ tableY += rowHeight;
         ]);
       });
       
-      // Create worksheet
+      excelData.push(['', '', '', '', '', '', '', '', '', '']); // Empty row
+      
+      // Add Notes if any
+      if (notes && notes.length > 0) {
+        excelData.push(['', 'NOTES', '', '', '', '', '', '', '', '']);
+        excelData.push(['', '', '', '', '', '', '', '', '', '']); // Empty row
+        
+        let noteNumber = 1;
+        notes.forEach((note) => {
+          const noteText = String(note.note_text || '');
+          if (!noteText) return;
+          
+          // Clean and split notes
+          const cleanedText = noteText.replace(/^NOTE:\s*/i, '').trim();
+          const items = cleanedText.split(/\n?\s*\d+\.\s*/)
+                                   .map(item => item.trim())
+                                   .filter(item => item.length > 0);
+          
+          items.forEach((item) => {
+            const upper = item.toUpperCase();
+            const isNote = upper.includes('TO BE') || upper.includes('CHAMFER') || 
+                          upper.includes('HARDEN') || upper.includes('SURFACE') || 
+                          upper.includes('PEENED') || upper.includes('PLATED') ||
+                          upper.includes('SHARP') || upper.includes('EDGE') ||
+                          (item.length > 20 && item.split(' ').length > 4);
+            
+            if (isNote) {
+              excelData.push(['', `${noteNumber}.`, item, '', '', '', '', '', '', '']);
+              noteNumber++;
+            }
+          });
+        });
+      }
+      
+      // Create worksheet with all data
       const ws = XLSX.utils.aoa_to_sheet(excelData);
       
-      // Add worksheet to workbook
-      XLSX.utils.book_append_sheet(wb, ws, 'Inspection Data');
+      // Define styling helper
+      const styleCell = (cellRef, style) => {
+        if (!ws[cellRef]) ws[cellRef] = { v: '' };
+        ws[cellRef].s = style;
+      };
+      
+      // Track row numbers for styling
+      let currentRow = 1;
+      
+      // Style: Main Title (Row 1) - Bold, large font, centered
+      ws['B1'].s = {
+        font: { bold: true, sz: 16, color: { rgb: '1F4E79' } },
+        alignment: { horizontal: 'center', vertical: 'center' }
+      };
+      
+      // Merge title across columns
+      if (!ws['!merges']) ws['!merges'] = [];
+      ws['!merges'].push({ s: { r: 0, c: 1 }, e: { r: 0, c: 5 } });
+      
+      currentRow += 2; // Skip empty row
+      
+      // Style: Section Headers with background color
+      const styleSectionHeader = (rowNum) => {
+        const cellRef = `B${rowNum}`;
+        if (ws[cellRef]) {
+          ws[cellRef].s = {
+            font: { bold: true, sz: 12, color: { rgb: 'FFFFFF' } },
+            fill: { fgColor: { rgb: '4472C4' }, patternType: 'solid' },
+            alignment: { horizontal: 'left', vertical: 'center' }
+          };
+          // Merge section headers
+          ws['!merges'].push({ s: { r: rowNum - 1, c: 1 }, e: { r: rowNum - 1, c: 5 } });
+        }
+      };
+      
+      // Style: Label cells (bold, right-aligned)
+      const styleLabel = (rowNum) => {
+        const cellRef = `B${rowNum}`;
+        if (ws[cellRef]) {
+          ws[cellRef].s = {
+            font: { bold: true, sz: 11 },
+            alignment: { horizontal: 'right', vertical: 'center' }
+          };
+        }
+      };
+      
+      // Style: Value cells (normal, left-aligned)
+      const styleValue = (rowNum) => {
+        const cellRef = `C${rowNum}`;
+        if (ws[cellRef]) {
+          ws[cellRef].s = {
+            font: { sz: 11 },
+            alignment: { horizontal: 'left', vertical: 'center' }
+          };
+        }
+      };
+      
+      // Apply styles to Part Information section
+      styleSectionHeader(3);  // "PART INFORMATION"
+      styleLabel(4); styleValue(4);   // Part Number
+      styleLabel(5); styleValue(5);   // Part Name
+      styleLabel(6); styleValue(6);   // Project
+      styleLabel(7); styleValue(7);   // Quantity
+      
+      currentRow = 8;
+      
+      // Apply styles to Additional Information section
+      if (customHeaders && customHeaders.length > 0) {
+        currentRow += 1;
+        styleSectionHeader(currentRow);  // "ADDITIONAL INFORMATION"
+        customHeaders.forEach((_, idx) => {
+          styleLabel(currentRow + idx + 1);
+          styleValue(currentRow + idx + 1);
+        });
+        currentRow += customHeaders.length + 1;
+      }
+      
+      // Apply styles to Company section
+      if (companyName) {
+        currentRow += 1;
+        styleSectionHeader(currentRow);  // "COMPANY"
+        styleLabel(currentRow + 1);
+        styleValue(currentRow + 1);
+        currentRow += 2;
+      }
+      
+      // Style Inspection Data header
+      currentRow += 2;
+      styleSectionHeader(currentRow - 1);  // "INSPECTION DATA"
+      
+      // Style table headers (Row with ID, NOMINAL, TOLERANCE, etc.)
+      const tableHeaderRow = currentRow + 1;
+      ['B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'].forEach(col => {
+        const cellRef = `${col}${tableHeaderRow}`;
+        if (ws[cellRef]) {
+          ws[cellRef].s = {
+            font: { bold: true, sz: 11, color: { rgb: 'FFFFFF' } },
+            fill: { fgColor: { rgb: '5B9BD5' }, patternType: 'solid' },
+            alignment: { horizontal: 'center', vertical: 'center' },
+            border: {
+              top: { style: 'thin', color: { rgb: '000000' } },
+              bottom: { style: 'thin', color: { rgb: '000000' } },
+              left: { style: 'thin', color: { rgb: '000000' } },
+              right: { style: 'thin', color: { rgb: '000000' } }
+            }
+          };
+        }
+      });
+      
+      // Style table data rows
+      const startDataRow = tableHeaderRow + 1;
+      const endDataRow = startDataRow + tableData.length - 1;
+      
+      for (let r = startDataRow; r <= endDataRow; r++) {
+        ['B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'].forEach((col, idx) => {
+          const cellRef = `${col}${r}`;
+          if (ws[cellRef]) {
+            // Center alignment for ID column, left for others
+            const align = idx === 0 ? 'center' : 'left';
+            ws[cellRef].s = {
+              font: { sz: 10 },
+              alignment: { horizontal: align, vertical: 'center' },
+              border: {
+                top: { style: 'thin', color: { rgb: 'D9D9D9' } },
+                bottom: { style: 'thin', color: { rgb: 'D9D9D9' } },
+                left: { style: 'thin', color: { rgb: 'D9D9D9' } },
+                right: { style: 'thin', color: { rgb: 'D9D9D9' } }
+              }
+            };
+          }
+        });
+      }
+      
+      // Style Notes section
+      if (notes && notes.length > 0) {
+        const notesHeaderRow = endDataRow + 3;
+        styleSectionHeader(notesHeaderRow);  // "NOTES"
+        
+        // Find and style note entries
+        let noteRow = notesHeaderRow + 2;
+        notes.forEach((note) => {
+          const noteText = String(note.note_text || '');
+          if (!noteText) return;
+          
+          const cleanedText = noteText.replace(/^NOTE:\s*/i, '').trim();
+          const items = cleanedText.split(/\n?\s*\d+\.\s*/)
+                                   .map(item => item.trim())
+                                   .filter(item => item.length > 0);
+          
+          items.forEach((item) => {
+            const upper = item.toUpperCase();
+            const isNote = upper.includes('TO BE') || upper.includes('CHAMFER') || 
+                          upper.includes('HARDEN') || upper.includes('SURFACE') || 
+                          upper.includes('PEENED') || upper.includes('PLATED') ||
+                          upper.includes('SHARP') || upper.includes('EDGE') ||
+                          (item.length > 20 && item.split(' ').length > 4);
+            
+            if (isNote) {
+              const numCellRef = `B${noteRow}`;
+              const textCellRef = `C${noteRow}`;
+              
+              if (ws[numCellRef]) {
+                ws[numCellRef].s = {
+                  font: { bold: true, sz: 10 },
+                  alignment: { horizontal: 'right', vertical: 'top' }
+                };
+              }
+              
+              if (ws[textCellRef]) {
+                ws[textCellRef].s = {
+                  font: { sz: 10 },
+                  alignment: { horizontal: 'left', vertical: 'top', wrapText: true }
+                };
+              }
+              
+              noteRow++;
+            }
+          });
+        });
+      }
+      
+      // Set column widths
+      ws['!cols'] = [
+        { wch: 2 },   // Column A (padding)
+        { wch: 8 },   // ID / Numbering
+        { wch: 20 },  // Label / NOMINAL
+        { wch: 20 },  // Value / TOLERANCE
+        { wch: 25 },  // Extra / TYPE
+        { wch: 12 },  // M1
+        { wch: 12 },  // M2
+        { wch: 12 },  // M3
+        { wch: 12 },  // MEAN
+        { wch: 12 }   // STATUS
+      ];
+      
+      // Set row heights for better spacing
+      ws['!rows'] = [];
+      ws['!rows'][0] = { hpt: 30 };  // Title row
+      ws['!rows'][2] = { hpt: 25 };  // Part Information header
+      
+      // Add single sheet
+      XLSX.utils.book_append_sheet(wb, ws, 'Inspection Report');
       
       // Generate filename
-      const fileName = `Inspection_Report_${partData.name || 'Direct_Part'}_${new Date().toISOString().split('T')[0]}.xlsx`;
+      const fileName = `Inspection_Report_${partData?.name || 'Direct_Part'}_${new Date().toISOString().split('T')[0]}.xlsx`;
       
-      // Save file
-      XLSX.writeFile(wb, fileName);
+      // Save file with styling options
+      XLSX.writeFile(wb, fileName, { bookType: 'xlsx', cellStyles: true });
       
       showStatus('Excel downloaded successfully!', 'success');
       

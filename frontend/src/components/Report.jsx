@@ -823,10 +823,10 @@ updateYPosition(5);
       tableWidth * 0.10,  // NOMINAL
       tableWidth * 0.13,  // TOLERANCE
       tableWidth * 0.18,  // TYPE - increased for longer text
-      tableWidth * 0.09,  // M1
-      tableWidth * 0.09,  // M2
-      tableWidth * 0.09,  // M3
-      tableWidth * 0.09,  // MEAN
+      tableWidth * 0.06,  // M1
+      tableWidth * 0.06,  // M2
+      tableWidth * 0.06,  // M3
+      tableWidth * 0.06,  // MEAN
       tableWidth * 0.09   // STATUS
     ];
     const headers = ['ID', 'NOMINAL', 'TOLERANCE', 'TYPE', 'M1', 'M2', 'M3', 'MEAN', 'STATUS'];
@@ -982,27 +982,6 @@ tableY += rowHeight;
     const totalPages = pdf.internal.getNumberOfPages();
     const lastPage = totalPages;
 
-    // Add CMTI logo as watermark (centered, semi-transparent)
-    for (let i = 1; i <= totalPages; i++) {
-      pdf.setPage(i);
-      
-      try {
-        const watermarkWidth = 120; // Width of watermark
-        const watermarkHeight = 60; // Height of watermark
-        const watermarkX = (pageWidth - watermarkWidth) / 2; // Center horizontally
-        const watermarkY = (pageHeight - watermarkHeight) / 2; // Center vertically
-        
-        // Set transparency for watermark
-        pdf.setGState(new pdf.GState({ opacity: 0.1 })); // 10% opacity for watermark
-        pdf.addImage(cmtiLogo, 'PNG', watermarkX, watermarkY, watermarkWidth, watermarkHeight);
-        
-        // Reset transparency
-        pdf.setGState(new pdf.GState({ opacity: 1.0 }));
-      } catch (error) {
-        console.warn('Could not add watermark to page:', i, error);
-      }
-    }
-    
     // Add black bold border to all pages
     for (let i = 1; i <= totalPages; i++) {
       pdf.setPage(i);

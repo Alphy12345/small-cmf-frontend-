@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FileText as ReportIcon, Download, FilePlus, Upload, ChevronLeft, ChevronRight, Palette, Table, Settings } from 'lucide-react';
+import { FileText as ReportIcon, Download, FilePlus, Upload, ChevronLeft, ChevronRight, Palette, Table, Settings, FileSpreadsheet } from 'lucide-react';
 import useReportStore from '../store/report';
 import useBboxStore from '../store/bbox';
 import PDFViewer from './PDFViewer';
@@ -1088,6 +1088,57 @@ tableY += rowHeight;
   }
 };
 
+  const generateExcel = async () => {
+    try {
+      showStatus('Generating Excel...', 'info');
+      
+      // Import xlsx library
+      const XLSX = await import('xlsx');
+      
+      // Create workbook
+      const wb = XLSX.utils.book_new();
+      
+      // Prepare data for Excel
+      const excelData = [];
+      
+      // Add headers
+      excelData.push(['ID', 'NOMINAL', 'TOLERANCE', 'TYPE', 'M1', 'M2', 'M3', 'MEAN', 'STATUS']);
+      
+      // Add table data
+      tableData.forEach((row, idx) => {
+        excelData.push([
+          idx + 1,
+          row.nominal || '-',
+          row.tolerance || '-',
+          row.type || '-',
+          row.m1 || '-',
+          row.m2 || '-',
+          row.m3 || '-',
+          row.mean || '-',
+          row.status || '-'
+        ]);
+      });
+      
+      // Create worksheet
+      const ws = XLSX.utils.aoa_to_sheet(excelData);
+      
+      // Add worksheet to workbook
+      XLSX.utils.book_append_sheet(wb, ws, 'Inspection Data');
+      
+      // Generate filename
+      const fileName = `Inspection_Report_${partData.name || 'Direct_Part'}_${new Date().toISOString().split('T')[0]}.xlsx`;
+      
+      // Save file
+      XLSX.writeFile(wb, fileName);
+      
+      showStatus('Excel downloaded successfully!', 'success');
+      
+    } catch (error) {
+      console.error('Error generating Excel:', error);
+      showStatus('Error generating Excel: ' + error.message, 'error');
+    }
+  };
+
   const CustomHeadersModal = () => {
     if (!showCustomHeadersModal) return null;
     
@@ -2085,6 +2136,39 @@ tableY += rowHeight;
                 </button>
 
                 <button
+                  onClick={generateExcel}
+                  style={{
+                    padding: '0.4rem 0.8rem',
+                    border: '1px solid #10b981',
+                    borderRadius: '4px',
+                    backgroundColor: '#10b981',
+                    color: '#ffffff',
+                    fontSize: '0.7rem',
+                    fontWeight: '500',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.25rem',
+                    flexDirection: 'row',
+                    boxShadow: '0 1px 2px rgba(16, 185, 129, 0.2)'
+                  }}
+                  onMouseOver={(e) => {
+                    e.currentTarget.style.backgroundColor = '#059669';
+                    e.currentTarget.style.borderColor = '#059669';
+                  }}
+                  onMouseOut={(e) => {
+                    e.currentTarget.style.backgroundColor = '#10b981';
+                    e.currentTarget.style.borderColor = '#10b981';
+                  }}
+                  title="Download Excel"
+                >
+                  <FileSpreadsheet size={12} />
+                  <span>Excel</span>
+                </button>
+
+                <button
                   onClick={() => setShowReportModal(false)}
                   style={{
                     padding: '0.4rem 0.8rem',
@@ -2135,8 +2219,7 @@ tableY += rowHeight;
                     transition: 'all 0.2s',
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'center',
-                    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.3)'
+                    justifyContent: 'center'
                   }}
                   onMouseOver={(e) => {
                     e.currentTarget.style.backgroundColor = '#333333';
@@ -2147,6 +2230,33 @@ tableY += rowHeight;
                   title="Download PDF"
                 >
                   <Download size={16} />
+                </button>
+
+                <button
+                  onClick={generateExcel}
+                  style={{
+                    padding: '0.625rem',
+                    border: '2px solid #10b981',
+                    borderRadius: '6px',
+                    backgroundColor: '#10b981',
+                    color: '#ffffff',
+                    fontSize: '0.75rem',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                  onMouseOver={(e) => {
+                    e.currentTarget.style.backgroundColor = '#059669';
+                  }}
+                  onMouseOut={(e) => {
+                    e.currentTarget.style.backgroundColor = '#10b981';
+                  }}
+                  title="Download Excel"
+                >
+                  <FileSpreadsheet size={16} />
                 </button>
 
                 <button

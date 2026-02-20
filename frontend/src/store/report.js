@@ -1,5 +1,8 @@
 import { create } from 'zustand';
 
+export const getBalloonedPdfDownloadUrl = (pdfId) =>
+  `http://172.18.100.26:8987/api/v1/pdf-annotation/pdf/${pdfId}/download-ballooned`;
+
 const useReportStore = create((set, get) => ({
   // Initial state
   reportData: null,

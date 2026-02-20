@@ -5,6 +5,7 @@ import useBboxStore from '../store/bbox';
 import PDFViewer from './PDFViewer';
 import jsPDF from 'jspdf';
 import cmtiLogo from '../assets/cmti.png';
+import { getBalloonedPdfDownloadUrl } from '../store/report';
 
 const Report = ({ 
   partData, partId, bomData, logo, setLogo, customFields, notes,
@@ -51,61 +52,62 @@ const Report = ({
       col: null
     });
   };
-const [isResizingLogo, setIsResizingLogo] = useState(null); // null, 'nw', 'ne', 'sw', 'se', 'n', 's', 'e', 'w'
-const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, width: 0, height: 0 });
 
-const handleLogoResizeMouseDown = (e, handle) => {
-  e.preventDefault();
-  e.stopPropagation();
-  setIsResizingLogo(handle);
-  setResizeStart({
-    x: e.clientX,
-    y: e.clientY,
-    width: reportCompanyLogoSize.width,
-    height: reportCompanyLogoSize.height
-  });
-};
+  const [isResizingLogo, setIsResizingLogo] = useState(null); // null, 'nw', 'ne', 'sw', 'se', 'n', 's', 'e', 'w'
+  const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, width: 0, height: 0 });
 
-// State for company name in report header (draggable & resizable)
-const [companyNamePosition, setCompanyNamePosition] = useState({ x: 20, y: 10, isDragging: false });
-const [companyNameDragStart, setCompanyNameDragStart] = useState({ x: 0, y: 0 });
-const [companyNameSize, setCompanyNameSize] = useState({ fontSize: 20, width: 300 });
-const [showNameControls, setShowNameControls] = useState(false);
-// State for company logo in report header (draggable & resizable)
-const [reportCompanyLogoPosition, setReportCompanyLogoPosition] = useState({ x: 340, y: 10, isDragging: false });
-const [reportCompanyLogoDragStart, setReportCompanyLogoDragStart] = useState({ x: 0, y: 0 });
-const [reportCompanyLogoSize, setReportCompanyLogoSize] = useState({ width: 150, height: 80 });
-const [showLogoControls, setShowLogoControls] = useState(false);
+  const handleLogoResizeMouseDown = (e, handle) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsResizingLogo(handle);
+    setResizeStart({
+      x: e.clientX,
+      y: e.clientY,
+      width: reportCompanyLogoSize.width,
+      height: reportCompanyLogoSize.height
+    });
+  };
 
-// Company name drag handlers for report header
-const handleCompanyNameMouseDown = (e) => {
-  e.preventDefault();
-  e.stopPropagation();
-  const headerElement = document.getElementById('report-header');
-  if (!headerElement) return;
-  
-  const rect = headerElement.getBoundingClientRect();
-  setCompanyNameDragStart({
-    x: e.clientX - rect.left - companyNamePosition.x,
-    y: e.clientY - rect.top - companyNamePosition.y
-  });
-  setCompanyNamePosition(prev => ({ ...prev, isDragging: true }));
-};
+  // State for company name in report header (draggable & resizable)
+  const [companyNamePosition, setCompanyNamePosition] = useState({ x: 20, y: 10, isDragging: false });
+  const [companyNameDragStart, setCompanyNameDragStart] = useState({ x: 0, y: 0 });
+  const [companyNameSize, setCompanyNameSize] = useState({ fontSize: 20, width: 300 });
+  const [showNameControls, setShowNameControls] = useState(false);
+  // State for company logo in report header (draggable & resizable)
+  const [reportCompanyLogoPosition, setReportCompanyLogoPosition] = useState({ x: 340, y: 10, isDragging: false });
+  const [reportCompanyLogoDragStart, setReportCompanyLogoDragStart] = useState({ x: 0, y: 0 });
+  const [reportCompanyLogoSize, setReportCompanyLogoSize] = useState({ width: 150, height: 80 });
+  const [showLogoControls, setShowLogoControls] = useState(false);
 
-// Company logo drag handlers for report header
-const handleReportCompanyLogoMouseDown = (e) => {
-  e.preventDefault();
-  e.stopPropagation();
-  const headerElement = document.getElementById('report-header');
-  if (!headerElement) return;
-  
-  const rect = headerElement.getBoundingClientRect();
-  setReportCompanyLogoDragStart({
-    x: e.clientX - rect.left - reportCompanyLogoPosition.x,
-    y: e.clientY - rect.top - reportCompanyLogoPosition.y
-  });
-  setReportCompanyLogoPosition(prev => ({ ...prev, isDragging: true }));
-};
+  // Company name drag handlers for report header
+  const handleCompanyNameMouseDown = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const headerElement = document.getElementById('report-header');
+    if (!headerElement) return;
+    
+    const rect = headerElement.getBoundingClientRect();
+    setCompanyNameDragStart({
+      x: e.clientX - rect.left - companyNamePosition.x,
+      y: e.clientY - rect.top - companyNamePosition.y
+    });
+    setCompanyNamePosition(prev => ({ ...prev, isDragging: true }));
+  };
+
+  // Company logo drag handlers for report header
+  const handleReportCompanyLogoMouseDown = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const headerElement = document.getElementById('report-header');
+    if (!headerElement) return;
+    
+    const rect = headerElement.getBoundingClientRect();
+    setReportCompanyLogoDragStart({
+      x: e.clientX - rect.left - reportCompanyLogoPosition.x,
+      y: e.clientY - rect.top - reportCompanyLogoPosition.y
+    });
+    setReportCompanyLogoPosition(prev => ({ ...prev, isDragging: true }));
+  };
 
 
   const [customHeaders, setCustomHeaders] = useState([]);
@@ -658,7 +660,7 @@ const handleReportCompanyLogoMouseDown = (e) => {
 
   if (pdfIdToDownload) {
     try {
-      const balloonedUrl = `http://172.18.100.26:8987/api/v1/pdf-annotation/pdf/${pdfIdToDownload}/download-ballooned`;
+      const balloonedUrl = getBalloonedPdfDownloadUrl(pdfIdToDownload);
       const balloonedRes = await fetch(balloonedUrl, { headers: { accept: 'application/pdf' } });
       if (!balloonedRes.ok) {
         throw new Error(`Failed to download ballooned PDF: ${balloonedRes.status} ${balloonedRes.statusText}`);
@@ -1190,7 +1192,7 @@ tableY += rowHeight;
           const { pdfjsLib } = await import('pdfjs-dist');
           pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
           
-          const balloonedPdfUrl = `http://172.18.100.26:8987/api/v1/pdf-annotation/pdf/${pdfIdToDownload}/download-ballooned`;
+          const balloonedPdfUrl = getBalloonedPdfDownloadUrl(pdfIdToDownload);
           const pdfResponse = await fetch(balloonedPdfUrl);
           
           if (pdfResponse.ok) {

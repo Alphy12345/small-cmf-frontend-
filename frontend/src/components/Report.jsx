@@ -1389,21 +1389,22 @@ editAs: 'oneCell'
 currentRow += 25; // Reserve rows for image
 }
       
-// Inspection Data Section
-worksheet.mergeCells(`B${currentRow}:J${currentRow}`);
-const inspectionHeaderCell = worksheet.getCell(`B${currentRow}`);
-inspectionHeaderCell.value = 'INSPECTION DATA';
-inspectionHeaderCell.font = { bold: true, size: 13, color: { argb: 'FFFFFF' } };
-inspectionHeaderCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '4472C4' } };
-inspectionHeaderCell.alignment = { horizontal: 'center', vertical: 'middle' };
-      
+ // Inspection Data Section
+ worksheet.mergeCells(`B${currentRow}:J${currentRow}`);
+ const inspectionHeaderCell = worksheet.getCell(`B${currentRow}`);
+ inspectionHeaderCell.value = 'INSPECTION DATA';
+ inspectionHeaderCell.font = { bold: true, size: 13, color: { argb: 'FFFFFF' } };
+ inspectionHeaderCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '4472C4' } };
+ inspectionHeaderCell.alignment = { horizontal: 'center', vertical: 'middle' };
+ currentRow++;
+
       // Table headers
       const headers = ['ID', 'NOMINAL', 'TOLERANCE', 'TYPE', 'M1', 'M2', 'M3', 'MEAN', 'STATUS'];
       headers.forEach((header, idx) => {
         const cell = worksheet.getCell(String.fromCharCode(66 + idx) + currentRow); // B, C, D...
         cell.value = header;
         cell.font = { bold: true, size: 11, color: { argb: 'FFFFFF' } };
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '5B9BD5' } };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '047857' } };
         cell.alignment = { horizontal: 'center', vertical: 'middle' };
         cell.border = {
           top: { style: 'thin' },
@@ -1433,9 +1434,8 @@ inspectionHeaderCell.alignment = { horizontal: 'center', vertical: 'middle' };
           cell.value = value;
           cell.font = { size: 10 };
           
-          // Center ID column, left-align others
-          const align = colIdx === 0 ? 'center' : 'left';
-          cell.alignment = { horizontal: align, vertical: 'middle' };
+          // Center all inspection table values
+          cell.alignment = { horizontal: 'center', vertical: 'middle' };
           
           // Color for status column
           if (colIdx === 8) { // STATUS column

@@ -681,8 +681,63 @@ const handleReportCompanyLogoMouseDown = (e) => {
 
       await page.render({ canvasContext: ctx, viewport }).promise;
 
-      balloonedImgData = canvas.toDataURL('image/png');
-      balloonedImgAspect = canvas.width / canvas.height;
+      try {
+        const w = canvas.width;
+        const h = canvas.height;
+        const img = ctx.getImageData(0, 0, w, h);
+        const data = img.data;
+
+        let minX = w;
+        let minY = h;
+        let maxX = -1;
+        let maxY = -1;
+        let found = false;
+
+        const step = 2;
+        for (let y = 0; y < h; y += step) {
+          const rowBase = y * w * 4;
+          for (let x = 0; x < w; x += step) {
+            const i = rowBase + x * 4;
+            const r = data[i];
+            const g = data[i + 1];
+            const b = data[i + 2];
+            const a = data[i + 3];
+
+            if (a > 120 && b > 130 && b > r + 30 && b > g + 30) {
+              found = true;
+              if (x < minX) minX = x;
+              if (y < minY) minY = y;
+              if (x > maxX) maxX = x;
+              if (y > maxY) maxY = y;
+            }
+          }
+        }
+
+        if (found && maxX > minX && maxY > minY) {
+          const pad = Math.max(80, Math.round(Math.min(w, h) * 0.07));
+          minX = Math.max(0, minX - pad);
+          minY = Math.max(0, minY - pad);
+          maxX = Math.min(w - 1, maxX + pad);
+          maxY = Math.min(h - 1, maxY + pad);
+
+          const cropW = maxX - minX + 1;
+          const cropH = maxY - minY + 1;
+          const cropCanvas = document.createElement('canvas');
+          const cropCtx = cropCanvas.getContext('2d');
+          cropCanvas.width = cropW;
+          cropCanvas.height = cropH;
+          cropCtx.drawImage(canvas, minX, minY, cropW, cropH, 0, 0, cropW, cropH);
+
+          balloonedImgData = cropCanvas.toDataURL('image/png');
+          balloonedImgAspect = cropW / cropH;
+        } else {
+          balloonedImgData = canvas.toDataURL('image/png');
+          balloonedImgAspect = canvas.width / canvas.height;
+        }
+      } catch (e) {
+        balloonedImgData = canvas.toDataURL('image/png');
+        balloonedImgAspect = canvas.width / canvas.height;
+      }
 
     } catch (e) {
       console.warn('Failed to embed ballooned PDF first page:', e);
@@ -848,7 +903,7 @@ if (customHeaders.length > partInfoData.length) {
     }
 }
 
-updateYPosition(5);
+updateYPosition(30);
 
     if (balloonedImgData && balloonedImgAspect) {
       const usableWidth = pageWidth - 2 * margin;

@@ -1205,60 +1205,269 @@ tableY += rowHeight;
     console.error('Error generating PDF:', error);
     showStatus('Error generating PDF: ' + error.message, 'error');
   }
-};
+  };
 
   const generateExcel = async () => {
     try {
       showStatus('Generating Excel...', 'info');
       
-      // Import xlsx library
-      const XLSX = await import('xlsx');
+      // Import exceljs library
+      const ExcelJS = await import('exceljs');
       
-      // Create workbook
-      const wb = XLSX.utils.book_new();
+      // Create workbook and worksheet
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet('Inspection Report');
       
-      // ===== SINGLE SHEET: Complete Report =====
-      const excelData = [];
+      // Get PDF ID for ballooned diagram
+      const pdfIdToDownload =
+        reportData?.pdf_id ||
+        reportData?.pdfId ||
+        reportData?.document_id ||
+        reportData?.documentId ||
+        reportData?.quantity_reports?.[0]?.pdf_id ||
+        reportData?.quantity_reports?.[0]?.pdfId ||
+        partData?.document_id ||
+        partData?.documentId ||
+        partData?.pdf_id ||
+        partData?.pdfId;
       
-      // Add title row - centered across columns
-      excelData.push(['', 'INSPECTION REPORT', '', '', '', '', '', '', '']);
-      excelData.push(['', '', '', '', '', '', '', '', '']); // Empty row
+      let balloonedImageId = null;
       
-      // Add Part Information Section
-      excelData.push(['', 'PART INFORMATION', '', '', '', '', '', '', '']);
-      excelData.push(['', 'Part Number:', String(reportData?.part_no || partData?.name || 'N/A'), '', '', '', '', '', '']);
-      excelData.push(['', 'Part Name:', String(reportData?.part_name || partData?.part_name || 'N/A'), '', '', '', '', '', '']);
-      excelData.push(['', 'Project:', String(reportData?.boc?.project?.name || bomData?.project?.name || 'N/A'), '', '', '', '', '', '']);
-      excelData.push(['', 'Quantity:', String(reportData?.boc?.quantity || 'N/A'), '', '', '', '', '', '']);
-      excelData.push(['', '', '', '', '', '', '', '', '']); // Empty row
+      // Fetch and process ballooned PDF for Excel (same logic as PDF)
+      if (pdfIdToDownload) {
+        try {
+          const { pdfjsLib } = await import('pdfjs-dist');
+          pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
+          
+          const balloonedPdfUrl = `http://172.18.100.26:8987/api/v1/pdf-annotation/pdf/${pdfIdToDownload}/download-ballooned`;
+          const pdfResponse = await fetch(balloonedPdfUrl);
+          
+          if (pdfResponse.ok) {
+            const pdfArrayBuffer = await pdfResponse.arrayBuffer();
+            const pdfDoc = await pdfjsLib.getDocument({ data: pdfArrayBuffer }).promise;
+            const page = await pdfDoc.getPage(1);
+            
+            const viewport = page.getViewport({ scale: 2.0 });
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            canvas.height = viewport.height;
+            canvas.width = viewport.width;
+            
+            await page.render({ canvasContext: context, viewport }).promise;
+            
+            // Crop to ballooned diagram (same logic as PDF)
+            const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+            const data = imageData.data;
+            const w = canvas.width;
+            const h = canvas.height;
+            
+            let minX = w, minY = h, maxX = 0, maxY = 0;
+            let found = false;
+            const step = 2;
+            
+            for (let y = 0; y < h; y += step) {
+              const rowBase = y * w * 4;
+              for (let x = 0; x < w; x += step) {
+                const i = rowBase + x * 4;
+                const r = data[i];
+                const g = data[i + 1];
+                const b = data[i + 2];
+                const a = data[i + 3];
+                
+                if (a > 120 && b > 130 && b > r + 30 && b > g + 30) {
+                  found = true;
+                  if (x < minX) minX = x;
+                  if (y < minY) minY = y;
+                  if (x > maxX) maxX = x;
+                  if (y > maxY) maxY = y;
+                }
+              }
+            }
+            
+            if (found && maxX > minX && maxY > minY) {
+              const pad = Math.max(80, Math.round(Math.min(w, h) * 0.07));
+              minX = Math.max(0, minX - pad);
+              minY = Math.max(0, minY - pad);
+              maxX = Math.min(w - 1, maxX + pad);
+              maxY = Math.min(h - 1, maxY + pad);
+              
+              const cropW = maxX - minX + 1;
+              const cropH = maxY - minY + 1;
+              const cropCanvas = document.createElement('canvas');
+              const cropCtx = cropCanvas.getContext('2d');
+              cropCanvas.width = cropW;
+              cropCanvas.height = cropH;
+              cropCtx.drawImage(canvas, minX, minY, cropW, cropH, 0, 0, cropW, cropH);
+              
+              // Add cropped image to Excel
+              const croppedImageBuffer = cropCanvas.toBuffer('image/png');
+              balloonedImageId = workbook.addImage({
+                buffer: croppedImageBuffer,
+                extension: 'png',
+              });
+            } else {
+              // Fallback to full page image
+              const fullImageBuffer = canvas.toBuffer('image/png');
+              balloonedImageId = workbook.addImage({
+                buffer: fullImageBuffer,
+                extension: 'png',
+              });
+            }
+          }
+        } catch (e) {
+          console.warn('Failed to embed ballooned PDF image in Excel:', e);
+        }
+      }
       
-      // Add Custom Headers if any
+      // Set column widths
+      worksheet.columns = [
+        { width: 5 },  // A - empty spacer
+        { width: 20 }, // B - labels
+        { width: 25 }, // C - values
+        { width: 15 }, // D - empty
+        { width: 15 }, // E - empty
+        { width: 15 }, // F - empty
+        { width: 15 }, // G - empty
+        { width: 15 }, // H - empty
+        { width: 15 }, // I - empty
+        { width: 15 }, // J - empty
+      ];
+      
+      let currentRow = 1;
+      
+      // Title
+      worksheet.mergeCells('B1:J1');
+      const titleCell = worksheet.getCell('B1');
+      titleCell.value = 'INSPECTION REPORT';
+      titleCell.font = { bold: true, size: 18, color: { argb: '1F4E79' } };
+      titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
+      currentRow += 2;
+      
+      // Part Information Section
+      worksheet.mergeCells(`B${currentRow}:J${currentRow}`);
+      const partHeaderCell = worksheet.getCell(`B${currentRow}`);
+      partHeaderCell.value = 'PART INFORMATION';
+      partHeaderCell.font = { bold: true, size: 13, color: { argb: 'FFFFFF' } };
+      partHeaderCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '4472C4' } };
+      partHeaderCell.alignment = { horizontal: 'center', vertical: 'middle' };
+      currentRow++;
+      
+      // Part Information data
+      const partInfoData = [
+        ['Part Number:', String(reportData?.part_no || partData?.name || 'N/A')],
+        ['Part Name:', String(reportData?.part_name || partData?.part_name || 'N/A')],
+        ['Project:', String(reportData?.boc?.project?.name || bomData?.project?.name || 'N/A')],
+        ['Quantity:', String(reportData?.boc?.quantity || 'N/A')]
+      ];
+      
+      partInfoData.forEach(([label, value]) => {
+        const labelCell = worksheet.getCell(`B${currentRow}`);
+        const valueCell = worksheet.getCell(`C${currentRow}`);
+        
+        labelCell.value = label;
+        labelCell.font = { bold: true, size: 11 };
+        labelCell.alignment = { horizontal: 'right', vertical: 'middle' };
+        
+        valueCell.value = value;
+        valueCell.font = { size: 11 };
+        valueCell.alignment = { horizontal: 'left', vertical: 'middle' };
+        
+        currentRow++;
+      });
+      
+      currentRow++;
+      
+      // Custom Headers if any
       if (customHeaders && customHeaders.length > 0) {
-        excelData.push(['', 'ADDITIONAL INFORMATION', '', '', '', '', '', '', '']);
+        worksheet.mergeCells(`B${currentRow}:J${currentRow}`);
+        const customHeaderCell = worksheet.getCell(`B${currentRow}`);
+        customHeaderCell.value = 'ADDITIONAL INFORMATION';
+        customHeaderCell.font = { bold: true, size: 13, color: { argb: 'FFFFFF' } };
+        customHeaderCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '4472C4' } };
+        customHeaderCell.alignment = { horizontal: 'center', vertical: 'middle' };
+        currentRow++;
+        
         customHeaders.forEach(header => {
-          excelData.push(['', String(header.fieldname || header.name) + ':', String(header.value), '', '', '', '', '', '']);
+          const labelCell = worksheet.getCell(`B${currentRow}`);
+          const valueCell = worksheet.getCell(`C${currentRow}`);
+          
+          labelCell.value = String(header.fieldname || header.name) + ':';
+          labelCell.font = { bold: true, size: 11 };
+          labelCell.alignment = { horizontal: 'right', vertical: 'middle' };
+          
+          valueCell.value = String(header.value);
+          valueCell.font = { size: 11 };
+          valueCell.alignment = { horizontal: 'left', vertical: 'middle' };
+          
+          currentRow++;
         });
-        excelData.push(['', '', '', '', '', '', '', '', '']); // Empty row
+        currentRow++;
       }
       
-      // Add Company Information if available
+      // Company Information if available
       if (companyName) {
-        excelData.push(['', 'COMPANY', '', '', '', '', '', '', '']);
-        excelData.push(['', 'Company Name:', companyName, '', '', '', '', '', '']);
-        excelData.push(['', '', '', '', '', '', '', '', '']); // Empty row
+        worksheet.mergeCells(`B${currentRow}:J${currentRow}`);
+        const companyHeaderCell = worksheet.getCell(`B${currentRow}`);
+        companyHeaderCell.value = 'COMPANY';
+        companyHeaderCell.font = { bold: true, size: 13, color: { argb: 'FFFFFF' } };
+        companyHeaderCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '4472C4' } };
+        companyHeaderCell.alignment = { horizontal: 'center', vertical: 'middle' };
+        currentRow++;
+        
+        const labelCell = worksheet.getCell(`B${currentRow}`);
+        const valueCell = worksheet.getCell(`C${currentRow}`);
+        
+        labelCell.value = 'Company Name:';
+        labelCell.font = { bold: true, size: 11 };
+        labelCell.alignment = { horizontal: 'right', vertical: 'middle' };
+        
+        valueCell.value = companyName;
+        valueCell.font = { size: 11 };
+        valueCell.alignment = { horizontal: 'left', vertical: 'middle' };
+        
+        currentRow += 2;
       }
       
-      // Add Inspection Data Section
-      excelData.push(['', 'INSPECTION DATA', '', '', '', '', '', '', '']);
-      excelData.push(['', '', '', '', '', '', '', '', '']); // Empty row
+      // Add ballooned diagram image if available
+      if (balloonedImageId) {
+        currentRow += 2; // Add spacing before image
+        worksheet.addImage(balloonedImageId, {
+          tl: { col: 7, row: currentRow - 1 }, // H column (index 7) - right side of sheet
+          ext: { width: 400, height: 300 },
+          editAs: 'oneCell'
+        });
+        currentRow += 20; // Reserve rows for image
+      }
       
-      // Add inspection table headers
-      excelData.push(['', 'ID', 'NOMINAL', 'TOLERANCE', 'TYPE', 'M1', 'M2', 'M3', 'MEAN', 'STATUS']);
+      // Inspection Data Section
+      worksheet.mergeCells(`B${currentRow}:J${currentRow}`);
+      const inspectionHeaderCell = worksheet.getCell(`B${currentRow}`);
+      inspectionHeaderCell.value = 'INSPECTION DATA';
+      inspectionHeaderCell.font = { bold: true, size: 13, color: { argb: 'FFFFFF' } };
+      inspectionHeaderCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '4472C4' } };
+      inspectionHeaderCell.alignment = { horizontal: 'center', vertical: 'middle' };
+      currentRow += 2;
       
-      // Add table data
+      // Table headers
+      const headers = ['ID', 'NOMINAL', 'TOLERANCE', 'TYPE', 'M1', 'M2', 'M3', 'MEAN', 'STATUS'];
+      headers.forEach((header, idx) => {
+        const cell = worksheet.getCell(String.fromCharCode(66 + idx) + currentRow); // B, C, D...
+        cell.value = header;
+        cell.font = { bold: true, size: 11, color: { argb: 'FFFFFF' } };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '5B9BD5' } };
+        cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        cell.border = {
+          top: { style: 'thin' },
+          left: { style: 'thin' },
+          bottom: { style: 'thin' },
+          right: { style: 'thin' }
+        };
+      });
+      currentRow++;
+      
+      // Table data
       tableData.forEach((row, idx) => {
-        excelData.push([
-          '',
+        const values = [
           idx + 1,
           row.nominal || '-',
           row.tolerance || '-',
@@ -1268,22 +1477,54 @@ tableY += rowHeight;
           row.m3 || '-',
           row.mean || '-',
           row.status || '-'
-        ]);
+        ];
+        
+        values.forEach((value, colIdx) => {
+          const cell = worksheet.getCell(String.fromCharCode(66 + colIdx) + currentRow);
+          cell.value = value;
+          cell.font = { size: 10 };
+          
+          // Center ID column, left-align others
+          const align = colIdx === 0 ? 'center' : 'left';
+          cell.alignment = { horizontal: align, vertical: 'middle' };
+          
+          // Color for status column
+          if (colIdx === 8) { // STATUS column
+            const statusUpper = String(value).toUpperCase();
+            if (statusUpper === 'NO_GO' || statusUpper === 'NO-GO' || statusUpper === 'NO GO') {
+              cell.font.color = { argb: 'FF0000' }; // Red
+            } else if (statusUpper === 'GO') {
+              cell.font.color = { argb: '00FF00' }; // Green
+            }
+          }
+          
+          cell.border = {
+            top: { style: 'thin', color: { argb: 'D9D9D9' } },
+            left: { style: 'thin', color: { argb: 'D9D9D9' } },
+            bottom: { style: 'thin', color: { argb: 'D9D9D9' } },
+            right: { style: 'thin', color: { argb: 'D9D9D9' } }
+          };
+        });
+        
+        currentRow++;
       });
       
-      excelData.push(['', '', '', '', '', '', '', '', '', '']); // Empty row
-      
-      // Add Notes if any
+      // Notes section
       if (notes && notes.length > 0) {
-        excelData.push(['', 'NOTES', '', '', '', '', '', '', '', '']);
-        excelData.push(['', '', '', '', '', '', '', '', '', '']); // Empty row
+        currentRow += 2;
+        worksheet.mergeCells(`B${currentRow}:J${currentRow}`);
+        const notesHeaderCell = worksheet.getCell(`B${currentRow}`);
+        notesHeaderCell.value = 'NOTES';
+        notesHeaderCell.font = { bold: true, size: 13, color: { argb: 'FFFFFF' } };
+        notesHeaderCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '4472C4' } };
+        notesHeaderCell.alignment = { horizontal: 'center', vertical: 'middle' };
+        currentRow += 2;
         
         let noteNumber = 1;
         notes.forEach((note) => {
           const noteText = String(note.note_text || '');
           if (!noteText) return;
           
-          // Clean and split notes
           const cleanedText = noteText.replace(/^NOTE:\s*/i, '').trim();
           const items = cleanedText.split(/\n?\s*\d+\.\s*/)
                                    .map(item => item.trim())
@@ -1298,229 +1539,37 @@ tableY += rowHeight;
                           (item.length > 20 && item.split(' ').length > 4);
             
             if (isNote) {
-              excelData.push(['', `${noteNumber}.`, item, '', '', '', '', '', '', '']);
+              const numberCell = worksheet.getCell(`B${currentRow}`);
+              const noteCell = worksheet.getCell(`C${currentRow}`);
+              
+              numberCell.value = `${noteNumber}.`;
+              numberCell.font = { bold: true, size: 10 };
+              numberCell.alignment = { horizontal: 'right', vertical: 'middle' };
+              
+              noteCell.value = item;
+              noteCell.font = { size: 10 };
+              noteCell.alignment = { horizontal: 'left', vertical: 'middle' };
+              
+              currentRow++;
               noteNumber++;
             }
           });
         });
       }
       
-      // Create worksheet with all data
-      const ws = XLSX.utils.aoa_to_sheet(excelData);
+      // Generate and download Excel file
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `inspection_report_${new Date().toISOString().split('T')[0]}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
       
-      // Define styling helper
-      const styleCell = (cellRef, style) => {
-        if (!ws[cellRef]) ws[cellRef] = { v: '' };
-        ws[cellRef].s = style;
-      };
-      
-      // Track row numbers for styling
-      let currentRow = 1;
-      
-      // Initialize merges array
-      if (!ws['!merges']) ws['!merges'] = [];
-      
-      // Style: Main Title (Row 1) - Bold, large font, centered
-      ws['B1'].s = {
-        font: { bold: true, sz: 18, color: { rgb: '1F4E79' } },
-        alignment: { horizontal: 'center', vertical: 'center' }
-      };
-      
-      // Merge title across columns B through J (columns 1-9)
-      ws['!merges'].push({ s: { r: 0, c: 1 }, e: { r: 0, c: 9 } });
-      
-      currentRow += 2; // Skip empty row
-      
-      // Style: Section Headers with background color - merged across ALL columns
-      const styleSectionHeader = (rowNum) => {
-        const cellRef = `B${rowNum}`;
-        if (ws[cellRef]) {
-          ws[cellRef].s = {
-            font: { bold: true, sz: 13, color: { rgb: 'FFFFFF' } },
-            fill: { fgColor: { rgb: '4472C4' }, patternType: 'solid' },
-            alignment: { horizontal: 'center', vertical: 'center' }
-          };
-          // Merge section headers across columns B through J
-          ws['!merges'].push({ s: { r: rowNum - 1, c: 1 }, e: { r: rowNum - 1, c: 9 } });
-        }
-      };
-      
-      // Style: Label cells (bold, right-aligned)
-      const styleLabel = (rowNum) => {
-        const cellRef = `B${rowNum}`;
-        if (ws[cellRef]) {
-          ws[cellRef].s = {
-            font: { bold: true, sz: 11 },
-            alignment: { horizontal: 'right', vertical: 'center' }
-          };
-        }
-      };
-      
-      // Style: Value cells (normal, left-aligned)
-      const styleValue = (rowNum) => {
-        const cellRef = `C${rowNum}`;
-        if (ws[cellRef]) {
-          ws[cellRef].s = {
-            font: { sz: 11 },
-            alignment: { horizontal: 'left', vertical: 'center' }
-          };
-        }
-      };
-      
-      // Apply styles to Part Information section
-      styleSectionHeader(3);  // "PART INFORMATION"
-      styleLabel(4); styleValue(4);   // Part Number
-      styleLabel(5); styleValue(5);   // Part Name
-      styleLabel(6); styleValue(6);   // Project
-      styleLabel(7); styleValue(7);   // Quantity
-      
-      currentRow = 8;
-      
-      // Apply styles to Additional Information section
-      if (customHeaders && customHeaders.length > 0) {
-        currentRow += 1;
-        styleSectionHeader(currentRow);  // "ADDITIONAL INFORMATION"
-        customHeaders.forEach((_, idx) => {
-          styleLabel(currentRow + idx + 1);
-          styleValue(currentRow + idx + 1);
-        });
-        currentRow += customHeaders.length + 1;
-      }
-      
-      // Apply styles to Company section
-      if (companyName) {
-        currentRow += 1;
-        styleSectionHeader(currentRow);  // "COMPANY"
-        styleLabel(currentRow + 1);
-        styleValue(currentRow + 1);
-        currentRow += 2;
-      }
-      
-      // Style Inspection Data header
-      currentRow += 2;
-      styleSectionHeader(currentRow - 1);  // "INSPECTION DATA"
-      
-      // Style table headers (Row with ID, NOMINAL, TOLERANCE, etc.)
-      const tableHeaderRow = currentRow + 1;
-      ['B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'].forEach(col => {
-        const cellRef = `${col}${tableHeaderRow}`;
-        if (ws[cellRef]) {
-          ws[cellRef].s = {
-            font: { bold: true, sz: 11, color: { rgb: 'FFFFFF' } },
-            fill: { fgColor: { rgb: '5B9BD5' }, patternType: 'solid' },
-            alignment: { horizontal: 'center', vertical: 'center' },
-            border: {
-              top: { style: 'thin', color: { rgb: '000000' } },
-              bottom: { style: 'thin', color: { rgb: '000000' } },
-              left: { style: 'thin', color: { rgb: '000000' } },
-              right: { style: 'thin', color: { rgb: '000000' } }
-            }
-          };
-        }
-      });
-      
-      // Style table data rows
-      const startDataRow = tableHeaderRow + 1;
-      const endDataRow = startDataRow + tableData.length - 1;
-      
-      for (let r = startDataRow; r <= endDataRow; r++) {
-        ['B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'].forEach((col, idx) => {
-          const cellRef = `${col}${r}`;
-          if (ws[cellRef]) {
-            // Center alignment for ID column, left for others
-            const align = idx === 0 ? 'center' : 'left';
-            ws[cellRef].s = {
-              font: { sz: 10 },
-              alignment: { horizontal: align, vertical: 'center' },
-              border: {
-                top: { style: 'thin', color: { rgb: 'D9D9D9' } },
-                bottom: { style: 'thin', color: { rgb: 'D9D9D9' } },
-                left: { style: 'thin', color: { rgb: 'D9D9D9' } },
-                right: { style: 'thin', color: { rgb: 'D9D9D9' } }
-              }
-            };
-          }
-        });
-      }
-      
-      // Style Notes section
-      if (notes && notes.length > 0) {
-        const notesHeaderRow = endDataRow + 3;
-        styleSectionHeader(notesHeaderRow);  // "NOTES"
-        
-        // Find and style note entries
-        let noteRow = notesHeaderRow + 2;
-        notes.forEach((note) => {
-          const noteText = String(note.note_text || '');
-          if (!noteText) return;
-          
-          const cleanedText = noteText.replace(/^NOTE:\s*/i, '').trim();
-          const items = cleanedText.split(/\n?\s*\d+\.\s*/)
-                                   .map(item => item.trim())
-                                   .filter(item => item.length > 0);
-          
-          items.forEach((item) => {
-            const upper = item.toUpperCase();
-            const isNote = upper.includes('TO BE') || upper.includes('CHAMFER') || 
-                          upper.includes('HARDEN') || upper.includes('SURFACE') || 
-                          upper.includes('PEENED') || upper.includes('PLATED') ||
-                          upper.includes('SHARP') || upper.includes('EDGE') ||
-                          (item.length > 20 && item.split(' ').length > 4);
-            
-            if (isNote) {
-              const numCellRef = `B${noteRow}`;
-              const textCellRef = `C${noteRow}`;
-              
-              if (ws[numCellRef]) {
-                ws[numCellRef].s = {
-                  font: { bold: true, sz: 10 },
-                  alignment: { horizontal: 'right', vertical: 'top' }
-                };
-              }
-              
-              if (ws[textCellRef]) {
-                ws[textCellRef].s = {
-                  font: { sz: 10 },
-                  alignment: { horizontal: 'left', vertical: 'top', wrapText: true }
-                };
-              }
-              
-              noteRow++;
-            }
-          });
-        });
-      }
-      
-      // Set column widths - AUTO ADJUSTED for content visibility
-      ws['!cols'] = [
-        { wch: 3 },   // Column A (padding)
-        { wch: 8 },   // ID / Numbering
-        { wch: 35 },  // Label / NOMINAL - wider for long text
-        { wch: 35 },  // Value / TOLERANCE - wider for long text
-        { wch: 30 },  // Extra / TYPE
-        { wch: 15 },  // M1
-        { wch: 15 },  // M2
-        { wch: 15 },  // M3
-        { wch: 15 },  // MEAN
-        { wch: 15 }   // STATUS
-      ];
-      
-      // Set row heights for better spacing
-      ws['!rows'] = [];
-      ws['!rows'][0] = { hpt: 35 };  // Title row - taller
-      ws['!rows'][2] = { hpt: 28 };  // Part Information header
-      
-      // Add single sheet
-      XLSX.utils.book_append_sheet(wb, ws, 'Inspection Report');
-      
-      // Generate filename
-      const fileName = `Inspection_Report_${partData?.name || 'Direct_Part'}_${new Date().toISOString().split('T')[0]}.xlsx`;
-      
-      // Save file with styling options
-      XLSX.writeFile(wb, fileName, { bookType: 'xlsx', cellStyles: true });
-      
-      showStatus('Excel downloaded successfully!', 'success');
-      
+      showStatus('Excel downloaded successfully', 'success');
     } catch (error) {
       console.error('Error generating Excel:', error);
       showStatus('Error generating Excel: ' + error.message, 'error');
@@ -1530,7 +1579,6 @@ tableY += rowHeight;
   const CustomHeadersModal = () => {
     if (!showCustomHeadersModal) return null;
     
-    // ... (rest of the code remains the same)
     const handleCompanyLogoUpload = (event) => {
       const file = event.target.files[0];
       if (file) {

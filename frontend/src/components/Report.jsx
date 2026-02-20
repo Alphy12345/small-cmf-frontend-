@@ -673,7 +673,7 @@ const handleReportCompanyLogoMouseDown = (e) => {
       const balloonedPdf = await loadingTask.promise;
       const page = await balloonedPdf.getPage(1);
 
-      const viewport = page.getViewport({ scale: 2 });
+      const viewport = page.getViewport({ scale: 3 }); // Higher scale for better quality
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
       canvas.width = Math.ceil(viewport.width);
@@ -681,64 +681,9 @@ const handleReportCompanyLogoMouseDown = (e) => {
 
       await page.render({ canvasContext: ctx, viewport }).promise;
 
-      try {
-        const w = canvas.width;
-        const h = canvas.height;
-        const img = ctx.getImageData(0, 0, w, h);
-        const data = img.data;
-
-        let minX = w;
-        let minY = h;
-        let maxX = -1;
-        let maxY = -1;
-        let found = false;
-
-        const step = 2;
-        for (let y = 0; y < h; y += step) {
-          const rowBase = y * w * 4;
-          for (let x = 0; x < w; x += step) {
-            const i = rowBase + x * 4;
-            const r = data[i];
-            const g = data[i + 1];
-            const b = data[i + 2];
-            const a = data[i + 3];
-
-            if (a > 120 && b > 130 && b > r + 30 && b > g + 30) {
-              found = true;
-              if (x < minX) minX = x;
-              if (y < minY) minY = y;
-              if (x > maxX) maxX = x;
-              if (y > maxY) maxY = y;
-            }
-          }
-        }
-
-        if (found && maxX > minX && maxY > minY) {
-          const pad = Math.max(80, Math.round(Math.min(w, h) * 0.07));
-          minX = Math.max(0, minX - pad);
-          minY = Math.max(0, minY - pad);
-          maxX = Math.min(w - 1, maxX + pad);
-          maxY = Math.min(h - 1, maxY + pad);
-
-          const cropW = maxX - minX + 1;
-          const cropH = maxY - minY + 1;
-          const cropCanvas = document.createElement('canvas');
-          const cropCtx = cropCanvas.getContext('2d');
-          cropCanvas.width = cropW;
-          cropCanvas.height = cropH;
-          cropCtx.drawImage(canvas, minX, minY, cropW, cropH, 0, 0, cropW, cropH);
-
-          balloonedImgData = cropCanvas.toDataURL('image/png');
-          balloonedImgAspect = cropW / cropH;
-        } else {
-          balloonedImgData = canvas.toDataURL('image/png');
-          balloonedImgAspect = canvas.width / canvas.height;
-        }
-      } catch (e) {
-        balloonedImgData = canvas.toDataURL('image/png');
-        balloonedImgAspect = canvas.width / canvas.height;
-      }
-
+      // Use full page image (no cropping)
+      balloonedImgData = canvas.toDataURL('image/png');
+      balloonedImgAspect = canvas.width / canvas.height;
     } catch (e) {
       console.warn('Failed to embed ballooned PDF first page:', e);
     }
@@ -903,32 +848,38 @@ if (customHeaders.length > partInfoData.length) {
     }
 }
 
-updateYPosition(30);
-
+updateYPosition(15);
+    
+    // ===== BALLOONED DIAGRAM ON PAGE 1 (below part info) =====
     if (balloonedImgData && balloonedImgAspect) {
-      const usableWidth = pageWidth - 2 * margin;
-      const usableHeight = pageHeight - margin - getYPosition();
-
-      if (usableHeight > 15) {
+      // Calculate remaining space on page 1
+      const remainingHeight = pageHeight - margin - getYPosition();
+      
+      // Use minimal margins for maximum size
+      const imgMargin = 3;
+      const usableWidth = pageWidth - 2 * imgMargin;
+      const usableHeight = remainingHeight - 5; // Small buffer
+      
+      if (usableHeight > 20) { // Only add if we have reasonable space
+        // Start with full width
         let drawW = usableWidth;
         let drawH = drawW / balloonedImgAspect;
-
+        
+        // If too tall for remaining space, scale down
         if (drawH > usableHeight) {
           drawH = usableHeight;
           drawW = drawH * balloonedImgAspect;
         }
-
-        const drawX = margin + (usableWidth - drawW) / 2;
+        
+        const drawX = imgMargin + (usableWidth - drawW) / 2;
         const drawY = getYPosition();
+        
         pdf.addImage(balloonedImgData, 'PNG', drawX, drawY, drawW, drawH);
-        updateYPosition(drawH);
+        updateYPosition(drawH + 10);
       }
     }
-
-    // Add spacing before table
-    updateYPosition(15);
     
-    // ===== PAGE 2: Inspection Data Table =====
+    // Add new page for inspection data
     pdf.addPage();
     let tableY = margin;
     
@@ -1423,30 +1374,28 @@ tableY += rowHeight;
         
         valueCell.value = companyName;
         valueCell.font = { size: 11 };
-        valueCell.alignment = { horizontal: 'left', vertical: 'middle' };
         
-        currentRow += 2;
-      }
+currentRow += 2;
+}
       
-      // Add ballooned diagram image if available
-      if (balloonedImageId) {
-        currentRow += 2; // Add spacing before image
-        worksheet.addImage(balloonedImageId, {
-          tl: { col: 7, row: currentRow - 1 }, // H column (index 7) - right side of sheet
-          ext: { width: 400, height: 300 },
-          editAs: 'oneCell'
-        });
-        currentRow += 20; // Reserve rows for image
-      }
+// Add ballooned diagram image if available - positioned on RIGHT side
+if (balloonedImageId) {
+currentRow += 2; // Add spacing before image
+worksheet.addImage(balloonedImageId, {
+tl: { col: 10, row: currentRow - 1 }, // Column K (index 10) - RIGHT side
+ext: { width: 500, height: 400 }, // Larger image
+editAs: 'oneCell'
+});
+currentRow += 25; // Reserve rows for image
+}
       
-      // Inspection Data Section
-      worksheet.mergeCells(`B${currentRow}:J${currentRow}`);
-      const inspectionHeaderCell = worksheet.getCell(`B${currentRow}`);
-      inspectionHeaderCell.value = 'INSPECTION DATA';
-      inspectionHeaderCell.font = { bold: true, size: 13, color: { argb: 'FFFFFF' } };
-      inspectionHeaderCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '4472C4' } };
-      inspectionHeaderCell.alignment = { horizontal: 'center', vertical: 'middle' };
-      currentRow += 2;
+// Inspection Data Section
+worksheet.mergeCells(`B${currentRow}:J${currentRow}`);
+const inspectionHeaderCell = worksheet.getCell(`B${currentRow}`);
+inspectionHeaderCell.value = 'INSPECTION DATA';
+inspectionHeaderCell.font = { bold: true, size: 13, color: { argb: 'FFFFFF' } };
+inspectionHeaderCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '4472C4' } };
+inspectionHeaderCell.alignment = { horizontal: 'center', vertical: 'middle' };
       
       // Table headers
       const headers = ['ID', 'NOMINAL', 'TOLERANCE', 'TYPE', 'M1', 'M2', 'M3', 'MEAN', 'STATUS'];

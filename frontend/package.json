@@ -15,6 +15,7 @@
     "@react-three/fiber": "^9.5.0",
     "@types/uuid": "^10.0.0",
     "axios": "^1.13.2",
+    "exceljs": "^4.4.0",
     "framer-motion": "^12.23.26",
     "jspdf": "^4.0.0",
     "lucide-react": "^0.561.0",

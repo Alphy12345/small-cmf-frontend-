@@ -633,24 +633,61 @@ const handleReportCompanyLogoMouseDown = (e) => {
   try {
     showStatus('Generating PDF...', 'info');
     const { jsPDF } = await import('jspdf');
-    
-    // Create PDF in portrait mode for separate A4 pages with larger margins
-    const pdf = new jsPDF('p', 'mm', 'a4');
-    const pageWidth = pdf.internal.pageSize.getWidth(); // ~210mm in portrait
-    const pageHeight = pdf.internal.pageSize.getHeight(); // ~297mm in portrait
-    const margin = 20; // Increased margin for more space
-    
-    let currentY = margin;
+    const pdfIdToDownload =
+      reportData?.pdf_id ||
+      reportData?.pdfId ||
+      reportData?.document_id ||
+      reportData?.documentId ||
+      reportData?.quantity_reports?.[0]?.pdf_id ||
+      reportData?.quantity_reports?.[0]?.pdfId ||
+      partData?.document_id ||
+      partData?.documentId ||
+      partData?.pdf_id ||
+      partData?.pdfId;
+  
+  // Create PDF in portrait mode for separate A4 pages with larger margins
+  const pdf = new jsPDF('p', 'mm', 'a4');
+  const pageWidth = pdf.internal.pageSize.getWidth(); // ~210mm in portrait
+  const pageHeight = pdf.internal.pageSize.getHeight(); // ~297mm in portrait
+  const margin = 20; // Increased margin for more space
+  
+  let currentY = margin;
 
-    // Helper function to check if we need a new page
-    const checkPageBreak = (requiredHeight) => {
-      if (currentY + requiredHeight > pageHeight - margin) {
-        pdf.addPage();
-        currentY = margin;
-        return true;
+  let balloonedImgData = null;
+  let balloonedImgAspect = null;
+
+  if (pdfIdToDownload) {
+    try {
+      const balloonedUrl = `http://172.18.100.26:8987/api/v1/pdf-annotation/pdf/${pdfIdToDownload}/download-ballooned`;
+      const balloonedRes = await fetch(balloonedUrl, { headers: { accept: 'application/pdf' } });
+      if (!balloonedRes.ok) {
+        throw new Error(`Failed to download ballooned PDF: ${balloonedRes.status} ${balloonedRes.statusText}`);
       }
-      return false;
-    };
+      const balloonedBuffer = await balloonedRes.arrayBuffer();
+      const pdfjsLib = await import('pdfjs-dist');
+      if (typeof window !== 'undefined' && !pdfjsLib.GlobalWorkerOptions.workerSrc) {
+        pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
+      }
+
+      const loadingTask = pdfjsLib.getDocument({ data: balloonedBuffer.slice(0) });
+      const balloonedPdf = await loadingTask.promise;
+      const page = await balloonedPdf.getPage(1);
+
+      const viewport = page.getViewport({ scale: 2 });
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      canvas.width = Math.ceil(viewport.width);
+      canvas.height = Math.ceil(viewport.height);
+
+      await page.render({ canvasContext: ctx, viewport }).promise;
+
+      balloonedImgData = canvas.toDataURL('image/png');
+      balloonedImgAspect = canvas.width / canvas.height;
+
+    } catch (e) {
+      console.warn('Failed to embed ballooned PDF first page:', e);
+    }
+  }
 
     // Helper function to update Y position
     const updateYPosition = (increment) => {
@@ -659,6 +696,13 @@ const handleReportCompanyLogoMouseDown = (e) => {
 
     const getYPosition = () => {
       return currentY;
+    };
+
+    const checkPageBreak = (requiredHeight) => {
+      if (currentY + requiredHeight > pageHeight - margin) {
+        pdf.addPage();
+        currentY = margin;
+      }
     };
 
     // ===== PAGE 1: Inspection Report =====
@@ -805,6 +849,26 @@ if (customHeaders.length > partInfoData.length) {
 }
 
 updateYPosition(5);
+
+    if (balloonedImgData && balloonedImgAspect) {
+      const usableWidth = pageWidth - 2 * margin;
+      const usableHeight = pageHeight - margin - getYPosition();
+
+      if (usableHeight > 15) {
+        let drawW = usableWidth;
+        let drawH = drawW / balloonedImgAspect;
+
+        if (drawH > usableHeight) {
+          drawH = usableHeight;
+          drawW = drawH * balloonedImgAspect;
+        }
+
+        const drawX = margin + (usableWidth - drawW) / 2;
+        const drawY = getYPosition();
+        pdf.addImage(balloonedImgData, 'PNG', drawX, drawY, drawW, drawH);
+        updateYPosition(drawH);
+      }
+    }
 
     // Add spacing before table
     updateYPosition(15);
@@ -1198,29 +1262,31 @@ tableY += rowHeight;
       // Track row numbers for styling
       let currentRow = 1;
       
+      // Initialize merges array
+      if (!ws['!merges']) ws['!merges'] = [];
+      
       // Style: Main Title (Row 1) - Bold, large font, centered
       ws['B1'].s = {
-        font: { bold: true, sz: 16, color: { rgb: '1F4E79' } },
+        font: { bold: true, sz: 18, color: { rgb: '1F4E79' } },
         alignment: { horizontal: 'center', vertical: 'center' }
       };
       
-      // Merge title across columns
-      if (!ws['!merges']) ws['!merges'] = [];
-      ws['!merges'].push({ s: { r: 0, c: 1 }, e: { r: 0, c: 5 } });
+      // Merge title across columns B through J (columns 1-9)
+      ws['!merges'].push({ s: { r: 0, c: 1 }, e: { r: 0, c: 9 } });
       
       currentRow += 2; // Skip empty row
       
-      // Style: Section Headers with background color
+      // Style: Section Headers with background color - merged across ALL columns
       const styleSectionHeader = (rowNum) => {
         const cellRef = `B${rowNum}`;
         if (ws[cellRef]) {
           ws[cellRef].s = {
-            font: { bold: true, sz: 12, color: { rgb: 'FFFFFF' } },
+            font: { bold: true, sz: 13, color: { rgb: 'FFFFFF' } },
             fill: { fgColor: { rgb: '4472C4' }, patternType: 'solid' },
-            alignment: { horizontal: 'left', vertical: 'center' }
+            alignment: { horizontal: 'center', vertical: 'center' }
           };
-          // Merge section headers
-          ws['!merges'].push({ s: { r: rowNum - 1, c: 1 }, e: { r: rowNum - 1, c: 5 } });
+          // Merge section headers across columns B through J
+          ws['!merges'].push({ s: { r: rowNum - 1, c: 1 }, e: { r: rowNum - 1, c: 9 } });
         }
       };
       
@@ -1370,24 +1436,24 @@ tableY += rowHeight;
         });
       }
       
-      // Set column widths
+      // Set column widths - AUTO ADJUSTED for content visibility
       ws['!cols'] = [
-        { wch: 2 },   // Column A (padding)
+        { wch: 3 },   // Column A (padding)
         { wch: 8 },   // ID / Numbering
-        { wch: 20 },  // Label / NOMINAL
-        { wch: 20 },  // Value / TOLERANCE
-        { wch: 25 },  // Extra / TYPE
-        { wch: 12 },  // M1
-        { wch: 12 },  // M2
-        { wch: 12 },  // M3
-        { wch: 12 },  // MEAN
-        { wch: 12 }   // STATUS
+        { wch: 35 },  // Label / NOMINAL - wider for long text
+        { wch: 35 },  // Value / TOLERANCE - wider for long text
+        { wch: 30 },  // Extra / TYPE
+        { wch: 15 },  // M1
+        { wch: 15 },  // M2
+        { wch: 15 },  // M3
+        { wch: 15 },  // MEAN
+        { wch: 15 }   // STATUS
       ];
       
       // Set row heights for better spacing
       ws['!rows'] = [];
-      ws['!rows'][0] = { hpt: 30 };  // Title row
-      ws['!rows'][2] = { hpt: 25 };  // Part Information header
+      ws['!rows'][0] = { hpt: 35 };  // Title row - taller
+      ws['!rows'][2] = { hpt: 28 };  // Part Information header
       
       // Add single sheet
       XLSX.utils.book_append_sheet(wb, ws, 'Inspection Report');

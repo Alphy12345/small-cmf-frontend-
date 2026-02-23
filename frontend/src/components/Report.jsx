@@ -778,6 +778,8 @@ const leftTableWidth = infoTableWidth;
 const rightTableX = margin + leftTableWidth + 10; // 10mm gap between tables
 const rightTableWidth = pageWidth - margin - rightTableX;
 
+const partTableStartY = getYPosition();
+
 partInfoData.forEach(([label, value], index) => {
     checkPageBreak(infoRowHeight + 2);
     const rowY = getYPosition();
@@ -796,57 +798,47 @@ partInfoData.forEach(([label, value], index) => {
     pdf.setTextColor(0, 0, 0); // Black text
     pdf.text(value, infoTableX + labelWidth + 2, rowY + 4);
     
-    // Right table (Custom Headers) - draw alongside with simple styling
-    if (customHeaders[index]) {
-        const header = customHeaders[index];
-        const fieldnameLabel = header.fieldname || 'Value';
-        
-        // Calculate widths for right table
-        const rightLabelWidth = 35;
-        const rightValueWidth = rightTableWidth - rightLabelWidth;
-        
-        pdf.setDrawColor(200, 200, 200);
-        pdf.setLineWidth(0.5);
-        pdf.rect(rightTableX, rowY, rightTableWidth, infoRowHeight);
-        pdf.line(rightTableX + rightLabelWidth, rowY, rightTableX + rightLabelWidth, rowY + infoRowHeight);
-        
-        pdf.setFont(undefined, 'bold');
-        pdf.setTextColor(0, 0, 0); // Black text
-        pdf.text(fieldnameLabel + ':', rightTableX + 2, rowY + 4);
-        
-        pdf.setFont(undefined, 'normal');
-        pdf.setTextColor(0, 0, 0); // Black text
-        pdf.text(String(header.value), rightTableX + rightLabelWidth + 2, rowY + 4);
-    }
-    
     updateYPosition(infoRowHeight);
 });
 
-// Handle remaining custom headers if more than part info rows
-if (customHeaders.length > partInfoData.length) {
-    for (let i = partInfoData.length; i < customHeaders.length; i++) {
-        checkPageBreak(infoRowHeight + 2);
-        const rowY = getYPosition();
+// Right table (Custom Headers) - shrink to only provided headers and content width
+if (customHeaders && customHeaders.length > 0) {
+    const maxRows = customHeaders.length;
+
+    // Measure content widths (similar to Part Information table)
+    let maxRightLabelW = 0;
+    let maxRightValueW = 0;
+    customHeaders.forEach((h) => {
+        const labelText = String(h?.fieldname || 'Value') + ':';
+        const valueText = String(h?.value ?? '');
+        maxRightLabelW = Math.max(maxRightLabelW, pdf.getTextWidth(labelText));
+        maxRightValueW = Math.max(maxRightValueW, pdf.getTextWidth(valueText));
+    });
+
+    const rightCellPad = 4;
+    const rightLabelWidth = Math.min(60, Math.max(28, maxRightLabelW + rightCellPad));
+    const rightValueWidth = Math.min(rightTableWidth - rightLabelWidth, maxRightValueW + rightCellPad);
+    const customTableWidth = rightLabelWidth + rightValueWidth;
+
+    for (let i = 0; i < maxRows; i++) {
+        const rowY = partTableStartY + i * infoRowHeight;
         const header = customHeaders[i];
+        if (!header) continue;
+
         const fieldnameLabel = header.fieldname || 'Value';
-        
-        const rightLabelWidth = 35;
-        const rightValueWidth = rightTableWidth - rightLabelWidth;
-        
+
         pdf.setDrawColor(200, 200, 200);
         pdf.setLineWidth(0.5);
-        pdf.rect(rightTableX, rowY, rightTableWidth, infoRowHeight);
+        pdf.rect(rightTableX, rowY, customTableWidth, infoRowHeight);
         pdf.line(rightTableX + rightLabelWidth, rowY, rightTableX + rightLabelWidth, rowY + infoRowHeight);
-        
+
         pdf.setFont(undefined, 'bold');
         pdf.setTextColor(0, 0, 0); // Black text
         pdf.text(fieldnameLabel + ':', rightTableX + 2, rowY + 4);
-        
+
         pdf.setFont(undefined, 'normal');
         pdf.setTextColor(0, 0, 0); // Black text
-        pdf.text(String(header.value), rightTableX + rightLabelWidth + 2, rowY + 4);
-        
-        updateYPosition(infoRowHeight);
+        pdf.text(String(header.value ?? ''), rightTableX + rightLabelWidth + 2, rowY + 4);
     }
 }
 

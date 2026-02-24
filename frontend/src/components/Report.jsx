@@ -709,167 +709,158 @@ const Report = ({
 
     // ===== PAGE 1: Inspection Report =====
     
-    // Add company logo if available (positioned on the left side)
+    checkPageBreak(70);
+
+    const headerX = margin;
+    const headerW = pageWidth - 2 * margin;
+    const headerStartY = getYPosition();
+
+    const topRowH = 14;
+    const logoBoxW = 32;
+    const titleBoxW = headerW - logoBoxW;
+
+    pdf.setDrawColor(0, 0, 0);
+    pdf.setLineWidth(0.3);
+    pdf.rect(headerX, headerStartY, headerW, topRowH);
+    pdf.line(headerX + logoBoxW, headerStartY, headerX + logoBoxW, headerStartY + topRowH);
+
     if (companyLogo) {
       try {
-        const logoWidth = 40;
-        const logoHeight = 20;
-        const logoX = margin; // Left margin
-        pdf.addImage(companyLogo, 'PNG', logoX, currentY - (logoHeight / 2), logoWidth, logoHeight);
+        const pad = 2;
+        const logoW = logoBoxW - pad * 2;
+        const logoH = topRowH - pad * 2;
+        pdf.addImage(companyLogo, 'PNG', headerX + pad, headerStartY + pad, logoW, logoH);
       } catch (error) {
         console.warn('Could not add company logo to PDF:', error);
       }
     }
 
-    // Add company name if available (positioned to the right of logo)
-    if (companyName) {
-      pdf.setFontSize(16);
-      pdf.setFont(undefined, 'bold');
-      const nameX = margin + 45; // 45mm from left (logo width + 5mm gap)
-      pdf.text(companyName, nameX, currentY + 5, { align: 'left' });
-    }
-updateYPosition(25); // Skip the title since we're showing company name and logo instead
+    const headerTitle = String(companyName || 'INSPECTION REPORT');
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(14);
+    pdf.setTextColor(0, 0, 0);
+    pdf.text(headerTitle, headerX + logoBoxW + titleBoxW / 2, headerStartY + 9, { align: 'center' });
 
-// Separator line
-pdf.setDrawColor(200, 200, 200);
-pdf.setLineWidth(0.5);
-pdf.line(margin, getYPosition(), pageWidth - margin, getYPosition());
-updateYPosition(10);
+    const infoStartY = headerStartY + topRowH + 6;
 
-// Part Information Section
-checkPageBreak(40);
-pdf.setFontSize(12);
-pdf.setFont(undefined, 'bold');
-pdf.setTextColor(0, 0, 0); // Black text for title
-pdf.text('Part Information', margin, getYPosition());
-updateYPosition(8);
+    const partInfoData = [
+      ['Part Number', String(reportData?.part_no || 'N/A')],
+      ['Part Name', String(reportData?.part_name || 'N/A')],
+      ['Project', String(reportData?.boc?.project?.name || 'N/A')],
+      ['Quantity', String(reportData?.boc?.quantity || 'N/A')]
+    ];
 
-// Create table for part information
-const partInfoData = [
-    ['Part Number:', String(reportData?.part_no || 'N/A')],
-    ['Part Name:', String(reportData?.part_name || 'N/A')],
-    ['Project:', String(reportData?.boc?.project?.name || 'N/A')],
-    ['Quantity:', String(reportData?.boc?.quantity || 'N/A')]
-];
+    const additionalData = (customHeaders || [])
+      .filter(h => h && (h.fieldname || h.name))
+      .map(h => [String(h.fieldname || h.name), String(h.value ?? '')]);
 
-pdf.setFontSize(9);
+    const gapBetweenTables = 12;
+    const leftTableMaxW = Math.min(95, headerW * 0.55);
+    const rightTableMaxW = headerW - leftTableMaxW - gapBetweenTables;
+    const leftTableX = headerX;
+    const rightTableX = headerX + leftTableMaxW + gapBetweenTables;
 
-// Calculate the maximum width needed for labels and values
-const labelWidth = 35; // Fixed width for labels
-let maxValueWidth = 0;
+    const rowH = 9; // keep ample spacing for future company name/logo/etc
+    const leftLabelW = 35;
 
-partInfoData.forEach(([label, value]) => {
-    const valueTextWidth = pdf.getTextWidth(value);
-    maxValueWidth = Math.max(maxValueWidth, valueTextWidth);
-});
+    pdf.setFontSize(9);
 
-// Add padding to value width
-const valuePadding = 4; // 2px padding on each side
-const valueWidth = maxValueWidth + valuePadding;
+    // Left table: sized by value width (but capped)
+    let maxLeftValueW = 0;
+    partInfoData.forEach(([, v]) => {
+      maxLeftValueW = Math.max(maxLeftValueW, pdf.getTextWidth(String(v)));
+    });
+    const leftValueW = Math.min(leftTableMaxW - leftLabelW, Math.max(35, maxLeftValueW + 6));
+    const leftTableW = leftLabelW + leftValueW;
 
-// Total table width is now based on content
-const infoTableWidth = labelWidth + valueWidth;
-
-const infoRowHeight = 6;
-const infoTableX = margin; // Start from left margin
-
-// Calculate positions for side-by-side tables
-const leftTableWidth = infoTableWidth;
-const rightTableX = margin + leftTableWidth + 10; // 10mm gap between tables
-const rightTableWidth = pageWidth - margin - rightTableX;
-
-const partTableStartY = getYPosition();
-
-partInfoData.forEach(([label, value], index) => {
-    checkPageBreak(infoRowHeight + 2);
-    const rowY = getYPosition();
-    
-    // Left table (Part Information) - simple styling
-    pdf.setDrawColor(200, 200, 200);
-    pdf.setLineWidth(0.5);
-    pdf.rect(infoTableX, rowY, leftTableWidth, infoRowHeight);
-    pdf.line(infoTableX + labelWidth, rowY, infoTableX + labelWidth, rowY + infoRowHeight);
-    
-    pdf.setFont(undefined, 'bold');
-    pdf.setTextColor(0, 0, 0); // Black text
-    pdf.text(label, infoTableX + 2, rowY + 4);
-    
-    pdf.setFont(undefined, 'normal');
-    pdf.setTextColor(0, 0, 0); // Black text
-    pdf.text(value, infoTableX + labelWidth + 2, rowY + 4);
-    
-    updateYPosition(infoRowHeight);
-});
-
-// Right table (Custom Headers) - shrink to only provided headers and content width
-if (customHeaders && customHeaders.length > 0) {
-    const maxRows = customHeaders.length;
-
-    // Measure content widths (similar to Part Information table)
+    // Right table: sized by content (but capped)
     let maxRightLabelW = 0;
     let maxRightValueW = 0;
-    customHeaders.forEach((h) => {
-        const labelText = String(h?.fieldname || 'Value') + ':';
-        const valueText = String(h?.value ?? '');
-        maxRightLabelW = Math.max(maxRightLabelW, pdf.getTextWidth(labelText));
-        maxRightValueW = Math.max(maxRightValueW, pdf.getTextWidth(valueText));
+    additionalData.forEach(([k, v]) => {
+      maxRightLabelW = Math.max(maxRightLabelW, pdf.getTextWidth(`${String(k)}:`));
+      maxRightValueW = Math.max(maxRightValueW, pdf.getTextWidth(String(v)));
     });
+    const rightLabelW = Math.min(70, Math.max(30, maxRightLabelW + 6));
+    const rightValueW = Math.min(rightTableMaxW - rightLabelW, Math.max(35, maxRightValueW + 6));
+    const rightTableW = additionalData.length > 0 ? rightLabelW + rightValueW : 0;
 
-    const rightCellPad = 4;
-    const rightLabelWidth = Math.min(60, Math.max(28, maxRightLabelW + rightCellPad));
-    const rightValueWidth = Math.min(rightTableWidth - rightLabelWidth, maxRightValueW + rightCellPad);
-    const customTableWidth = rightLabelWidth + rightValueWidth;
+    const infoRows = Math.max(partInfoData.length, additionalData.length);
 
-    for (let i = 0; i < maxRows; i++) {
-        const rowY = partTableStartY + i * infoRowHeight;
-        const header = customHeaders[i];
-        if (!header) continue;
+    // Draw left (existing headers)
+    for (let i = 0; i < partInfoData.length; i++) {
+      const rowTop = infoStartY + i * rowH;
+      pdf.setDrawColor(0, 0, 0);
+      pdf.setLineWidth(0.3);
+      pdf.rect(leftTableX, rowTop, leftTableW, rowH);
+      pdf.line(leftTableX + leftLabelW, rowTop, leftTableX + leftLabelW, rowTop + rowH);
 
-        const fieldnameLabel = header.fieldname || 'Value';
-
-        pdf.setDrawColor(200, 200, 200);
-        pdf.setLineWidth(0.5);
-        pdf.rect(rightTableX, rowY, customTableWidth, infoRowHeight);
-        pdf.line(rightTableX + rightLabelWidth, rowY, rightTableX + rightLabelWidth, rowY + infoRowHeight);
-
-        pdf.setFont(undefined, 'bold');
-        pdf.setTextColor(0, 0, 0); // Black text
-        pdf.text(fieldnameLabel + ':', rightTableX + 2, rowY + 4);
-
-        pdf.setFont(undefined, 'normal');
-        pdf.setTextColor(0, 0, 0); // Black text
-        pdf.text(String(header.value ?? ''), rightTableX + rightLabelWidth + 2, rowY + 4);
+      const [k, v] = partInfoData[i];
+      pdf.setFont('helvetica', 'bold');
+      pdf.text(`${k}:`, leftTableX + 2, rowTop + 6);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(String(v), leftTableX + leftLabelW + 2, rowTop + 6);
     }
-}
 
-updateYPosition(15);
-    
+    // Draw right (new/additional headers)
+    if (additionalData.length > 0) {
+      for (let i = 0; i < additionalData.length; i++) {
+        const rowTop = infoStartY + i * rowH;
+        pdf.setDrawColor(0, 0, 0);
+        pdf.setLineWidth(0.3);
+        pdf.rect(rightTableX, rowTop, rightTableW, rowH);
+        pdf.line(rightTableX + rightLabelW, rowTop, rightTableX + rightLabelW, rowTop + rowH);
+
+        const [k, v] = additionalData[i];
+        pdf.setFont('helvetica', 'bold');
+        pdf.text(`${k}:`, rightTableX + 2, rowTop + 6);
+        pdf.setFont('helvetica', 'normal');
+        pdf.text(String(v), rightTableX + rightLabelW + 2, rowTop + 6);
+      }
+    }
+
+    // Move cursor below both tables, leaving extra breathing room
+    currentY = infoStartY + infoRows * rowH + 10;
+
+    const drawingHeaderH = 8;
+    const drawingHeaderY = getYPosition();
+    pdf.setDrawColor(0, 0, 0);
+    pdf.setLineWidth(0.3);
+    pdf.rect(margin, drawingHeaderY, pageWidth - 2 * margin, drawingHeaderH);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(10);
+    pdf.setTextColor(0, 0, 0);
+    pdf.text('Drawing (2D)', margin + 2, drawingHeaderY + 5.5);
+    updateYPosition(drawingHeaderH + 4);
+
     // ===== BALLOONED DIAGRAM ON PAGE 1 (below part info) =====
     if (balloonedImgData && balloonedImgAspect) {
       // Calculate remaining space on page 1
       const remainingHeight = pageHeight - margin - getYPosition();
       
       // Use minimal margins for maximum size
-      const imgMargin = 3;
-      const usableWidth = pageWidth - 2 * imgMargin;
-      const usableHeight = remainingHeight - 5; // Small buffer
+      const imgMargin = margin;
+      const boxX = imgMargin;
+      const boxY = getYPosition();
+      const boxW = pageWidth - 2 * imgMargin;
+      const boxH = remainingHeight;
+
+      pdf.setDrawColor(0, 0, 0);
+      pdf.setLineWidth(0.3);
+      pdf.rect(boxX, boxY, boxW, boxH);
+
+      const pad = 0;
+      const usableWidth = boxW - pad * 2;
+      const usableHeight = boxH - pad * 2;
       
       if (usableHeight > 20) { // Only add if we have reasonable space
-        // Start with full width
-        let drawW = usableWidth;
-        let drawH = drawW / balloonedImgAspect;
-        
-        // If too tall for remaining space, scale down
-        if (drawH > usableHeight) {
-          drawH = usableHeight;
-          drawW = drawH * balloonedImgAspect;
-        }
-        
-        const drawX = imgMargin + (usableWidth - drawW) / 2;
-        const drawY = getYPosition();
+        // Stretch to fill the remaining drawing area
+        const drawW = usableWidth;
+        const drawH = usableHeight;
+        const drawX = boxX + pad;
+        const drawY = boxY + pad;
         
         pdf.addImage(balloonedImgData, 'PNG', drawX, drawY, drawW, drawH);
-        updateYPosition(drawH + 10);
+        updateYPosition(boxH + 10);
       }
     }
     
